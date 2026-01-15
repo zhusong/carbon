@@ -12,6 +12,10 @@ categories = ["encoding"]
 [lib]
 crate-type = ["rlib"]
 
+[features]
+default = []
+minimal-events = []
+
 [dependencies]
 carbon-core = { workspace = true }
 serde = { workspace = true }

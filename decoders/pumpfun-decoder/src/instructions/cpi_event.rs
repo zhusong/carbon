@@ -70,103 +70,133 @@ impl CpiEvent {
         }
 
         let event_data = &data[8..];
+        if event_data.len() < 8 {
+            return None;
+        }
 
-        if let Some(decoded) =
-            events::admin_set_creator_event::AdminSetCreatorEventEvent::decode(event_data)
-        {
-            return Some(CpiEvent::AdminSetCreatorEvent(decoded));
+        let event_disc = <[u8; 8]>::try_from(&event_data[..8]).ok()?;
+
+        #[cfg(feature = "minimal-events")]
+        match event_disc {
+            [27, 114, 169, 77, 222, 235, 99, 118] => {
+                events::create_event::CreateEventEvent::decode(event_data)
+                    .map(CpiEvent::CreateEvent)
+            }
+            [189, 219, 127, 211, 78, 230, 97, 238] => {
+                events::trade_event::TradeEventEvent::decode(event_data)
+                    .map(CpiEvent::TradeEvent)
+            }
+            [189, 233, 93, 185, 92, 148, 234, 148] => {
+                events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::CompletePumpAmmMigrationEvent)
+            }
+            _ => None,
         }
-        if let Some(decoded) =
-            events::admin_set_idl_authority_event::AdminSetIdlAuthorityEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::AdminSetIdlAuthorityEvent(decoded));
+
+        #[cfg(not(feature = "minimal-events"))]
+        match event_disc {
+            [27, 114, 169, 77, 222, 235, 99, 118] => {
+                events::create_event::CreateEventEvent::decode(event_data)
+                    .map(CpiEvent::CreateEvent)
+            }
+            [189, 219, 127, 211, 78, 230, 97, 238] => {
+                events::trade_event::TradeEventEvent::decode(event_data)
+                    .map(CpiEvent::TradeEvent)
+            }
+            [189, 233, 93, 185, 92, 148, 234, 148] => {
+                events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::CompletePumpAmmMigrationEvent)
+            }
+            [64, 69, 192, 104, 29, 30, 25, 107] => {
+                events::admin_set_creator_event::AdminSetCreatorEventEvent::decode(event_data)
+                    .map(CpiEvent::AdminSetCreatorEvent)
+            }
+            [245, 59, 70, 34, 75, 185, 109, 92] => {
+                events::admin_set_idl_authority_event::AdminSetIdlAuthorityEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::AdminSetIdlAuthorityEvent)
+            }
+            [147, 250, 108, 120, 247, 29, 67, 222] => {
+                events::admin_update_token_incentives_event::AdminUpdateTokenIncentivesEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::AdminUpdateTokenIncentivesEvent)
+            }
+            [79, 172, 246, 49, 205, 91, 206, 232] => {
+                events::claim_token_incentives_event::ClaimTokenIncentivesEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::ClaimTokenIncentivesEvent)
+            }
+            [146, 159, 189, 172, 146, 88, 56, 244] => {
+                events::close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::CloseUserVolumeAccumulatorEvent)
+            }
+            [122, 2, 127, 1, 14, 191, 12, 175] => {
+                events::collect_creator_fee_event::CollectCreatorFeeEventEvent::decode(event_data)
+                    .map(CpiEvent::CollectCreatorFeeEvent)
+            }
+            [95, 114, 97, 156, 212, 46, 152, 8] => {
+                events::complete_event::CompleteEventEvent::decode(event_data)
+                    .map(CpiEvent::CompleteEvent)
+            }
+            [97, 97, 215, 144, 93, 146, 22, 124] => {
+                events::extend_account_event::ExtendAccountEventEvent::decode(event_data)
+                    .map(CpiEvent::ExtendAccountEvent)
+            }
+            [134, 36, 13, 72, 232, 101, 130, 216] => {
+                events::init_user_volume_accumulator_event::InitUserVolumeAccumulatorEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::InitUserVolumeAccumulatorEvent)
+            }
+            [43, 188, 250, 18, 221, 75, 187, 95] => {
+                events::reserved_fee_recipients_event::ReservedFeeRecipientsEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::ReservedFeeRecipientsEvent)
+            }
+            [237, 52, 123, 37, 245, 251, 72, 210] => {
+                events::set_creator_event::SetCreatorEventEvent::decode(event_data)
+                    .map(CpiEvent::SetCreatorEvent)
+            }
+            [142, 203, 6, 32, 127, 105, 191, 162] => {
+                events::set_metaplex_creator_event::SetMetaplexCreatorEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::SetMetaplexCreatorEvent)
+            }
+            [223, 195, 159, 246, 62, 48, 143, 131] => {
+                events::set_params_event::SetParamsEventEvent::decode(event_data)
+                    .map(CpiEvent::SetParamsEvent)
+            }
+            [197, 122, 167, 124, 116, 81, 91, 255] => {
+                events::sync_user_volume_accumulator_event::SyncUserVolumeAccumulatorEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::SyncUserVolumeAccumulatorEvent)
+            }
+            [182, 195, 137, 42, 35, 206, 207, 247] => {
+                events::update_global_authority_event::UpdateGlobalAuthorityEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::UpdateGlobalAuthorityEvent)
+            }
+            [117, 123, 228, 182, 161, 168, 220, 214] => {
+                events::update_mayhem_virtual_params_event::UpdateMayhemVirtualParamsEventEvent::decode(
+                    event_data,
+                )
+                .map(CpiEvent::UpdateMayhemVirtualParamsEvent)
+            }
+            _ => None,
         }
-        if let Some(decoded) = events::admin_update_token_incentives_event::AdminUpdateTokenIncentivesEventEvent::decode(event_data) {
-            return Some(CpiEvent::AdminUpdateTokenIncentivesEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::claim_token_incentives_event::ClaimTokenIncentivesEventEvent::decode(event_data)
-        {
-            return Some(CpiEvent::ClaimTokenIncentivesEvent(decoded));
-        }
-        if let Some(decoded) = events::close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEventEvent::decode(event_data) {
-            return Some(CpiEvent::CloseUserVolumeAccumulatorEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::collect_creator_fee_event::CollectCreatorFeeEventEvent::decode(event_data)
-        {
-            return Some(CpiEvent::CollectCreatorFeeEvent(decoded));
-        }
-        if let Some(decoded) = events::complete_event::CompleteEventEvent::decode(event_data) {
-            return Some(CpiEvent::CompleteEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::CompletePumpAmmMigrationEvent(decoded));
-        }
-        if let Some(decoded) = events::create_event::CreateEventEvent::decode(event_data) {
-            return Some(CpiEvent::CreateEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::extend_account_event::ExtendAccountEventEvent::decode(event_data)
-        {
-            return Some(CpiEvent::ExtendAccountEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::init_user_volume_accumulator_event::InitUserVolumeAccumulatorEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::InitUserVolumeAccumulatorEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::reserved_fee_recipients_event::ReservedFeeRecipientsEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::ReservedFeeRecipientsEvent(decoded));
-        }
-        if let Some(decoded) = events::set_creator_event::SetCreatorEventEvent::decode(event_data) {
-            return Some(CpiEvent::SetCreatorEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::set_metaplex_creator_event::SetMetaplexCreatorEventEvent::decode(event_data)
-        {
-            return Some(CpiEvent::SetMetaplexCreatorEvent(decoded));
-        }
-        if let Some(decoded) = events::set_params_event::SetParamsEventEvent::decode(event_data) {
-            return Some(CpiEvent::SetParamsEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::sync_user_volume_accumulator_event::SyncUserVolumeAccumulatorEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::SyncUserVolumeAccumulatorEvent(decoded));
-        }
-        if let Some(decoded) = events::trade_event::TradeEventEvent::decode(event_data) {
-            return Some(CpiEvent::TradeEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::update_global_authority_event::UpdateGlobalAuthorityEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::UpdateGlobalAuthorityEvent(decoded));
-        }
-        if let Some(decoded) =
-            events::update_mayhem_virtual_params_event::UpdateMayhemVirtualParamsEventEvent::decode(
-                event_data,
-            )
-        {
-            return Some(CpiEvent::UpdateMayhemVirtualParamsEvent(decoded));
-        }
-        None
     }
 }
 

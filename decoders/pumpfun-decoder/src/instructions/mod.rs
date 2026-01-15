@@ -88,242 +88,279 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpfunDecoder {
 
         let data = instruction.data.as_slice();
 
+        #[cfg(feature = "minimal-events")]
         {
-            if let Some(decoded) = admin_set_creator::AdminSetCreator::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::AdminSetCreator(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
+            if data.len() < 8 {
+                return None;
             }
-        }
-        {
-            if let Some(decoded) = admin_set_idl_authority::AdminSetIdlAuthority::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::AdminSetIdlAuthority(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) =
-                admin_update_token_incentives::AdminUpdateTokenIncentives::decode(data)
-            {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::AdminUpdateTokenIncentives(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = buy::Buy::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::Buy(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = buy_exact_sol_in::BuyExactSolIn::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::BuyExactSolIn(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = claim_token_incentives::ClaimTokenIncentives::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::ClaimTokenIncentives(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) =
-                close_user_volume_accumulator::CloseUserVolumeAccumulator::decode(data)
-            {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::CloseUserVolumeAccumulator(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = collect_creator_fee::CollectCreatorFee::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::CollectCreatorFee(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = create::Create::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::Create(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = create_v2::CreateV2::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::CreateV2(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = extend_account::ExtendAccount::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::ExtendAccount(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) =
-                init_user_volume_accumulator::InitUserVolumeAccumulator::decode(data)
-            {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::InitUserVolumeAccumulator(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = initialize::Initialize::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::Initialize(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = migrate::Migrate::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::Migrate(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = sell::Sell::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::Sell(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = set_creator::SetCreator::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::SetCreator(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = set_mayhem_virtual_params::SetMayhemVirtualParams::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::SetMayhemVirtualParams(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = set_metaplex_creator::SetMetaplexCreator::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::SetMetaplexCreator(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = set_params::SetParams::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::SetParams(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) =
-                set_reserved_fee_recipients::SetReservedFeeRecipients::decode(data)
-            {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::SetReservedFeeRecipients(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) =
-                sync_user_volume_accumulator::SyncUserVolumeAccumulator::decode(data)
-            {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::SyncUserVolumeAccumulator(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = toggle_create_v2::ToggleCreateV2::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::ToggleCreateV2(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = toggle_mayhem_mode::ToggleMayhemMode::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::ToggleMayhemMode(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = update_global_authority::UpdateGlobalAuthority::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::UpdateGlobalAuthority(decoded),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
-        }
-        {
-            if let Some(decoded) = cpi_event::CpiEvent::decode(data) {
-                return Some(carbon_core::instruction::DecodedInstruction {
-                    program_id: instruction.program_id,
-                    data: PumpfunInstruction::CpiEvent(Box::new(decoded)),
-                    accounts: instruction.accounts.clone(),
-                });
-            }
+            let disc = <[u8; 8]>::try_from(&data[..8]).ok()?;
+            return match disc {
+                [24, 30, 200, 40, 5, 28, 7, 119] => create::Create::decode(data).map(|decoded| {
+                    carbon_core::instruction::DecodedInstruction {
+                        program_id: instruction.program_id,
+                        data: PumpfunInstruction::Create(decoded),
+                        accounts: instruction.accounts.clone(),
+                    }
+                }),
+                [214, 144, 76, 236, 95, 139, 49, 180] => {
+                    create_v2::CreateV2::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::CreateV2(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [155, 234, 231, 146, 236, 158, 162, 30] => {
+                    migrate::Migrate::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::Migrate(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [228, 69, 165, 46, 81, 203, 154, 29] => {
+                    cpi_event::CpiEvent::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::CpiEvent(Box::new(decoded)),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                _ => None,
+            };
         }
 
-        None
+        #[cfg(not(feature = "minimal-events"))]
+        {
+            if data.len() < 8 {
+                return None;
+            }
+            let disc = <[u8; 8]>::try_from(&data[..8]).ok()?;
+            return match disc {
+                [69, 25, 171, 142, 57, 239, 13, 4] => {
+                    admin_set_creator::AdminSetCreator::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::AdminSetCreator(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [8, 217, 96, 231, 144, 104, 192, 5] => {
+                    admin_set_idl_authority::AdminSetIdlAuthority::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::AdminSetIdlAuthority(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [209, 11, 115, 87, 213, 23, 124, 204] => {
+                    admin_update_token_incentives::AdminUpdateTokenIncentives::decode(data).map(
+                        |decoded| carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::AdminUpdateTokenIncentives(decoded),
+                            accounts: instruction.accounts.clone(),
+                        },
+                    )
+                }
+                [102, 6, 61, 18, 1, 218, 235, 234] => buy::Buy::decode(data).map(|decoded| {
+                    carbon_core::instruction::DecodedInstruction {
+                        program_id: instruction.program_id,
+                        data: PumpfunInstruction::Buy(decoded),
+                        accounts: instruction.accounts.clone(),
+                    }
+                }),
+                [56, 252, 116, 8, 158, 223, 205, 95] => {
+                    buy_exact_sol_in::BuyExactSolIn::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::BuyExactSolIn(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [16, 4, 71, 28, 204, 1, 40, 27] => {
+                    claim_token_incentives::ClaimTokenIncentives::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::ClaimTokenIncentives(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [249, 69, 164, 218, 150, 103, 84, 138] => {
+                    close_user_volume_accumulator::CloseUserVolumeAccumulator::decode(data).map(
+                        |decoded| carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::CloseUserVolumeAccumulator(decoded),
+                            accounts: instruction.accounts.clone(),
+                        },
+                    )
+                }
+                [20, 22, 86, 123, 198, 28, 219, 132] => {
+                    collect_creator_fee::CollectCreatorFee::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::CollectCreatorFee(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [228, 69, 165, 46, 81, 203, 154, 29] => {
+                    cpi_event::CpiEvent::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::CpiEvent(Box::new(decoded)),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [24, 30, 200, 40, 5, 28, 7, 119] => create::Create::decode(data).map(
+                    |decoded| carbon_core::instruction::DecodedInstruction {
+                        program_id: instruction.program_id,
+                        data: PumpfunInstruction::Create(decoded),
+                        accounts: instruction.accounts.clone(),
+                    },
+                ),
+                [214, 144, 76, 236, 95, 139, 49, 180] => {
+                    create_v2::CreateV2::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::CreateV2(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [234, 102, 194, 203, 150, 72, 62, 229] => {
+                    extend_account::ExtendAccount::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::ExtendAccount(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [94, 6, 202, 115, 255, 96, 232, 183] => {
+                    init_user_volume_accumulator::InitUserVolumeAccumulator::decode(data).map(
+                        |decoded| carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::InitUserVolumeAccumulator(decoded),
+                            accounts: instruction.accounts.clone(),
+                        },
+                    )
+                }
+                [175, 175, 109, 31, 13, 152, 155, 237] => {
+                    initialize::Initialize::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::Initialize(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [155, 234, 231, 146, 236, 158, 162, 30] => {
+                    migrate::Migrate::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::Migrate(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [51, 230, 133, 164, 1, 127, 131, 173] => sell::Sell::decode(data).map(
+                    |decoded| carbon_core::instruction::DecodedInstruction {
+                        program_id: instruction.program_id,
+                        data: PumpfunInstruction::Sell(decoded),
+                        accounts: instruction.accounts.clone(),
+                    },
+                ),
+                [254, 148, 255, 112, 207, 142, 170, 165] => {
+                    set_creator::SetCreator::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::SetCreator(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [61, 169, 188, 191, 153, 149, 42, 97] => {
+                    set_mayhem_virtual_params::SetMayhemVirtualParams::decode(data).map(
+                        |decoded| carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::SetMayhemVirtualParams(decoded),
+                            accounts: instruction.accounts.clone(),
+                        },
+                    )
+                }
+                [138, 96, 174, 217, 48, 85, 197, 246] => {
+                    set_metaplex_creator::SetMetaplexCreator::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::SetMetaplexCreator(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [27, 234, 178, 52, 147, 2, 187, 141] => {
+                    set_params::SetParams::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::SetParams(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [111, 172, 162, 232, 114, 89, 213, 142] => {
+                    set_reserved_fee_recipients::SetReservedFeeRecipients::decode(data).map(
+                        |decoded| carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::SetReservedFeeRecipients(decoded),
+                            accounts: instruction.accounts.clone(),
+                        },
+                    )
+                }
+                [86, 31, 192, 87, 163, 87, 79, 238] => {
+                    sync_user_volume_accumulator::SyncUserVolumeAccumulator::decode(data).map(
+                        |decoded| carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::SyncUserVolumeAccumulator(decoded),
+                            accounts: instruction.accounts.clone(),
+                        },
+                    )
+                }
+                [28, 255, 230, 240, 172, 107, 203, 171] => {
+                    toggle_create_v2::ToggleCreateV2::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::ToggleCreateV2(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [1, 9, 111, 208, 100, 31, 255, 163] => {
+                    toggle_mayhem_mode::ToggleMayhemMode::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::ToggleMayhemMode(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                [227, 181, 74, 196, 208, 21, 97, 213] => {
+                    update_global_authority::UpdateGlobalAuthority::decode(data).map(|decoded| {
+                        carbon_core::instruction::DecodedInstruction {
+                            program_id: instruction.program_id,
+                            data: PumpfunInstruction::UpdateGlobalAuthority(decoded),
+                            accounts: instruction.accounts.clone(),
+                        }
+                    })
+                }
+                _ => None,
+            };
+        }
     }
 }

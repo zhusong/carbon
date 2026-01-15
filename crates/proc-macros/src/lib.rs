@@ -328,6 +328,26 @@ fn get_discriminator(attrs: &[syn::Attribute]) -> Option<quote::__private::Token
     })
 }
 
+fn infer_program_id_path(instruction_type: &TypePath) -> Option<syn::Path> {
+    use syn::{punctuated::Punctuated, PathArguments, PathSegment, Token};
+
+    let first = instruction_type.path.segments.first()?;
+    let mut segments = Punctuated::<PathSegment, Token![::]>::new();
+    segments.push(PathSegment {
+        ident: first.ident.clone(),
+        arguments: PathArguments::None,
+    });
+    segments.push(PathSegment {
+        ident: Ident::new("PROGRAM_ID", Span::call_site()),
+        arguments: PathArguments::None,
+    });
+
+    Some(syn::Path {
+        leading_colon: instruction_type.path.leading_colon,
+        segments,
+    })
+}
+
 /// Represents the parsed input for instruction decoder collection macros.
 ///
 /// The `InstructionMacroInput` struct holds the essential elements required to
@@ -782,7 +802,7 @@ pub fn instruction_decoder_collection(input: TokenStream) -> TokenStream {
 ///     AllProgramsEnum,
 ///     // 4-part (preferred): Variant => ProgramIdPath => DecoderExpr => InstructionTypePath
 ///     Pumpfun => carbon_pumpfun_decoder::PROGRAM_ID => carbon_pumpfun_decoder::PumpfunDecoder => carbon_pumpfun_decoder::instructions::PumpfunInstruction,
-///     // 3-part (legacy): falls back to slow sequential decode
+///     // 3-part (legacy): tries to infer `<crate>::PROGRAM_ID`, otherwise falls back
 ///     PumpSwap => carbon_pump_swap_decoder::PumpSwapDecoder => carbon_pump_swap_decoder::instructions::PumpSwapInstruction,
 /// );
 /// ```
@@ -816,10 +836,11 @@ pub fn instruction_decoder_collection_fast(input: TokenStream) -> TokenStream {
         let instruction_type_ident = format_ident!("{}Type", instruction_enum_ident);
 
         // Resolve the program id path for dispatch. Prefer explicitly provided
-        // path if available; otherwise, fall back to inferring `<crate>::PROGRAM_ID`
-        // from the first segment of the instruction type path for backward
-        // compatibility with older 3-part syntax.
-        let explicit_program_id_path = entry.program_id_path;
+        // path if available; otherwise, infer `<crate>::PROGRAM_ID` from the
+        // first segment of the instruction type path when possible.
+        let program_id_path = entry
+            .program_id_path
+            .or_else(|| infer_program_id_path(&instruction_type));
 
         instruction_variants.push(quote! {
             #program_variant(#instruction_enum_ident)
@@ -831,7 +852,7 @@ pub fn instruction_decoder_collection_fast(input: TokenStream) -> TokenStream {
             #program_variant
         });
 
-        if let Some(program_id_path) = explicit_program_id_path {
+        if let Some(program_id_path) = program_id_path {
             parse_instruction_match_arms.push(quote! {
                 #program_id_path => {
                     if let Some(decoded_instruction) = #decoder_expr.decode_instruction(&instruction) {

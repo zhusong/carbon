@@ -128,45 +128,240 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
         } else {
             instruction
         };
-        carbon_core::try_decode_instructions!(instruction,
-            PumpSwapInstruction::AdminSetCoinCreator => admin_set_coin_creator::AdminSetCoinCreator,
-            PumpSwapInstruction::AdminUpdateTokenIncentives => admin_update_token_incentives::AdminUpdateTokenIncentives,
-            PumpSwapInstruction::Buy => buy::Buy,
-            PumpSwapInstruction::BuyExactQuoteIn => buy_exact_quote_in::BuyExactQuoteIn,
-            PumpSwapInstruction::ClaimTokenIncentives => claim_token_incentives::ClaimTokenIncentives,
-            PumpSwapInstruction::CloseUserVolumeAccumulator => close_user_volume_accumulator::CloseUserVolumeAccumulator,
-            PumpSwapInstruction::CollectCoinCreatorFee => collect_coin_creator_fee::CollectCoinCreatorFee,
-            PumpSwapInstruction::CreateConfig => create_config::CreateConfig,
-            PumpSwapInstruction::CreatePool => create_pool::CreatePool,
-            PumpSwapInstruction::Deposit => deposit::Deposit,
-            PumpSwapInstruction::Disable => disable::Disable,
-            PumpSwapInstruction::ExtendAccount => extend_account::ExtendAccount,
-            PumpSwapInstruction::InitUserVolumeAccumulator => init_user_volume_accumulator::InitUserVolumeAccumulator,
-            PumpSwapInstruction::Sell => sell::Sell,
-            PumpSwapInstruction::SetCoinCreator => set_coin_creator::SetCoinCreator,
-            PumpSwapInstruction::SyncUserVolumeAccumulator => sync_user_volume_accumulator::SyncUserVolumeAccumulator,
-            PumpSwapInstruction::UpdateAdmin => update_admin::UpdateAdmin,
-            PumpSwapInstruction::UpdateFeeConfig => update_fee_config::UpdateFeeConfig,
-            PumpSwapInstruction::Withdraw => withdraw::Withdraw,
-            PumpSwapInstruction::AdminSetCoinCreatorEvent => admin_set_coin_creator_event::AdminSetCoinCreatorEvent,
-            PumpSwapInstruction::AdminUpdateTokenIncentivesEvent => admin_update_token_incentives_event::AdminUpdateTokenIncentivesEvent,
-            PumpSwapInstruction::BuyEvent => buy_event::BuyEvent,
-            PumpSwapInstruction::ClaimTokenIncentivesEvent => claim_token_incentives_event::ClaimTokenIncentivesEvent,
-            PumpSwapInstruction::CloseUserVolumeAccumulatorEvent => close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEvent,
-            PumpSwapInstruction::CollectCoinCreatorFeeEvent => collect_coin_creator_fee_event::CollectCoinCreatorFeeEvent,
-            PumpSwapInstruction::CreateConfigEvent => create_config_event::CreateConfigEvent,
-            PumpSwapInstruction::CreatePoolEvent => create_pool_event::CreatePoolEvent,
-            PumpSwapInstruction::DepositEvent => deposit_event::DepositEvent,
-            PumpSwapInstruction::DisableEvent => disable_event::DisableEvent,
-            PumpSwapInstruction::ExtendAccountEvent => extend_account_event::ExtendAccountEvent,
-            PumpSwapInstruction::InitUserVolumeAccumulatorEvent => init_user_volume_accumulator_event::InitUserVolumeAccumulatorEvent,
-            PumpSwapInstruction::SellEvent => sell_event::SellEvent,
-            PumpSwapInstruction::SetBondingCurveCoinCreatorEvent => set_bonding_curve_coin_creator_event::SetBondingCurveCoinCreatorEvent,
-            PumpSwapInstruction::SetMetaplexCoinCreatorEvent => set_metaplex_coin_creator_event::SetMetaplexCoinCreatorEvent,
-            PumpSwapInstruction::SyncUserVolumeAccumulatorEvent => sync_user_volume_accumulator_event::SyncUserVolumeAccumulatorEvent,
-            PumpSwapInstruction::UpdateAdminEvent => update_admin_event::UpdateAdminEvent,
-            PumpSwapInstruction::UpdateFeeConfigEvent => update_fee_config_event::UpdateFeeConfigEvent,
-            PumpSwapInstruction::WithdrawEvent => withdraw_event::WithdrawEvent,
-        )
+        let data = instruction.data.as_slice();
+
+        #[cfg(feature = "minimal-events")]
+        {
+            if data.len() < 8 {
+                return None;
+            }
+            if data.len() >= 16 {
+                let disc16 = <[u8; 16]>::try_from(&data[..16]).ok()?;
+                let decoded = match disc16 {
+                    [228, 69, 165, 46, 81, 203, 154, 29, 103, 244, 82, 31, 44, 245, 119, 119] => {
+                        buy_event::BuyEvent::deserialize(data).map(PumpSwapInstruction::BuyEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 62, 47, 55, 10, 165, 3, 220, 42] => {
+                        sell_event::SellEvent::deserialize(data).map(PumpSwapInstruction::SellEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 177, 49, 12, 210, 160, 118, 167, 116] => {
+                        create_pool_event::CreatePoolEvent::deserialize(data)
+                            .map(PumpSwapInstruction::CreatePoolEvent)
+                    }
+                    _ => None,
+                };
+                if let Some(decoded) = decoded {
+                    return Some(carbon_core::instruction::DecodedInstruction {
+                        program_id: instruction.program_id,
+                        accounts: instruction.accounts.clone(),
+                        data: decoded,
+                    });
+                }
+            }
+
+            let disc8 = <[u8; 8]>::try_from(&data[..8]).ok()?;
+            let decoded = match disc8 {
+                [102, 6, 61, 18, 1, 218, 235, 234] => {
+                    buy::Buy::deserialize(data).map(PumpSwapInstruction::Buy)
+                }
+                [51, 230, 133, 164, 1, 127, 131, 173] => {
+                    sell::Sell::deserialize(data).map(PumpSwapInstruction::Sell)
+                }
+                [233, 146, 209, 142, 207, 104, 64, 188] => {
+                    create_pool::CreatePool::deserialize(data).map(PumpSwapInstruction::CreatePool)
+                }
+                _ => None,
+            };
+
+            return decoded.map(|data| carbon_core::instruction::DecodedInstruction {
+                program_id: instruction.program_id,
+                accounts: instruction.accounts.clone(),
+                data,
+            });
+        }
+
+        #[cfg(not(feature = "minimal-events"))]
+        {
+            if data.len() < 8 {
+                return None;
+            }
+
+            if data.len() >= 16 {
+                let disc16 = <[u8; 16]>::try_from(&data[..16]).ok()?;
+                let decoded = match disc16 {
+                    [228, 69, 165, 46, 81, 203, 154, 29, 45, 220, 93, 24, 25, 97, 172, 104] => {
+                        admin_set_coin_creator_event::AdminSetCoinCreatorEvent::deserialize(data)
+                            .map(PumpSwapInstruction::AdminSetCoinCreatorEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 147, 250, 108, 120, 247, 29, 67, 222] => {
+                        admin_update_token_incentives_event::AdminUpdateTokenIncentivesEvent::deserialize(
+                            data,
+                        )
+                        .map(PumpSwapInstruction::AdminUpdateTokenIncentivesEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 103, 244, 82, 31, 44, 245, 119, 119] => {
+                        buy_event::BuyEvent::deserialize(data).map(PumpSwapInstruction::BuyEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 79, 172, 246, 49, 205, 91, 206, 232] => {
+                        claim_token_incentives_event::ClaimTokenIncentivesEvent::deserialize(data)
+                            .map(PumpSwapInstruction::ClaimTokenIncentivesEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 146, 159, 189, 172, 146, 88, 56, 244] => {
+                        close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEvent::deserialize(
+                            data,
+                        )
+                        .map(PumpSwapInstruction::CloseUserVolumeAccumulatorEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 232, 245, 194, 238, 234, 218, 58, 89] => {
+                        collect_coin_creator_fee_event::CollectCoinCreatorFeeEvent::deserialize(data)
+                            .map(PumpSwapInstruction::CollectCoinCreatorFeeEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 107, 52, 89, 129, 55, 226, 81, 22] => {
+                        create_config_event::CreateConfigEvent::deserialize(data)
+                            .map(PumpSwapInstruction::CreateConfigEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 177, 49, 12, 210, 160, 118, 167, 116] => {
+                        create_pool_event::CreatePoolEvent::deserialize(data)
+                            .map(PumpSwapInstruction::CreatePoolEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 120, 248, 61, 83, 31, 142, 107, 144] => {
+                        deposit_event::DepositEvent::deserialize(data)
+                            .map(PumpSwapInstruction::DepositEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 107, 253, 193, 76, 228, 202, 27, 104] => {
+                        disable_event::DisableEvent::deserialize(data)
+                            .map(PumpSwapInstruction::DisableEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 97, 97, 215, 144, 93, 146, 22, 124] => {
+                        extend_account_event::ExtendAccountEvent::deserialize(data)
+                            .map(PumpSwapInstruction::ExtendAccountEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 134, 36, 13, 72, 232, 101, 130, 216] => {
+                        init_user_volume_accumulator_event::InitUserVolumeAccumulatorEvent::deserialize(
+                            data,
+                        )
+                        .map(PumpSwapInstruction::InitUserVolumeAccumulatorEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 62, 47, 55, 10, 165, 3, 220, 42] => {
+                        sell_event::SellEvent::deserialize(data).map(PumpSwapInstruction::SellEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 242, 231, 235, 102, 65, 99, 189, 211] => {
+                        set_bonding_curve_coin_creator_event::SetBondingCurveCoinCreatorEvent::deserialize(
+                            data,
+                        )
+                        .map(PumpSwapInstruction::SetBondingCurveCoinCreatorEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 150, 107, 199, 123, 124, 207, 102, 228] => {
+                        set_metaplex_coin_creator_event::SetMetaplexCoinCreatorEvent::deserialize(data)
+                            .map(PumpSwapInstruction::SetMetaplexCoinCreatorEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 197, 122, 167, 124, 116, 81, 91, 255] => {
+                        sync_user_volume_accumulator_event::SyncUserVolumeAccumulatorEvent::deserialize(
+                            data,
+                        )
+                        .map(PumpSwapInstruction::SyncUserVolumeAccumulatorEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 225, 152, 171, 87, 246, 63, 66, 234] => {
+                        update_admin_event::UpdateAdminEvent::deserialize(data)
+                            .map(PumpSwapInstruction::UpdateAdminEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 90, 23, 65, 35, 62, 244, 188, 208] => {
+                        update_fee_config_event::UpdateFeeConfigEvent::deserialize(data)
+                            .map(PumpSwapInstruction::UpdateFeeConfigEvent)
+                    }
+                    [228, 69, 165, 46, 81, 203, 154, 29, 22, 9, 133, 26, 160, 44, 71, 192] => {
+                        withdraw_event::WithdrawEvent::deserialize(data)
+                            .map(PumpSwapInstruction::WithdrawEvent)
+                    }
+                    _ => None,
+                };
+                if let Some(decoded) = decoded {
+                    return Some(carbon_core::instruction::DecodedInstruction {
+                        program_id: instruction.program_id,
+                        accounts: instruction.accounts.clone(),
+                        data: decoded,
+                    });
+                }
+            }
+
+            let disc8 = <[u8; 8]>::try_from(&data[..8]).ok()?;
+            let decoded = match disc8 {
+                [242, 40, 117, 145, 73, 96, 105, 104] => {
+                    admin_set_coin_creator::AdminSetCoinCreator::deserialize(data)
+                        .map(PumpSwapInstruction::AdminSetCoinCreator)
+                }
+                [209, 11, 115, 87, 213, 23, 124, 204] => {
+                    admin_update_token_incentives::AdminUpdateTokenIncentives::deserialize(data)
+                        .map(PumpSwapInstruction::AdminUpdateTokenIncentives)
+                }
+                [102, 6, 61, 18, 1, 218, 235, 234] => {
+                    buy::Buy::deserialize(data).map(PumpSwapInstruction::Buy)
+                }
+                [198, 46, 21, 82, 180, 217, 232, 112] => {
+                    buy_exact_quote_in::BuyExactQuoteIn::deserialize(data)
+                        .map(PumpSwapInstruction::BuyExactQuoteIn)
+                }
+                [16, 4, 71, 28, 204, 1, 40, 27] => {
+                    claim_token_incentives::ClaimTokenIncentives::deserialize(data)
+                        .map(PumpSwapInstruction::ClaimTokenIncentives)
+                }
+                [249, 69, 164, 218, 150, 103, 84, 138] => {
+                    close_user_volume_accumulator::CloseUserVolumeAccumulator::deserialize(data)
+                        .map(PumpSwapInstruction::CloseUserVolumeAccumulator)
+                }
+                [160, 57, 89, 42, 181, 139, 43, 66] => {
+                    collect_coin_creator_fee::CollectCoinCreatorFee::deserialize(data)
+                        .map(PumpSwapInstruction::CollectCoinCreatorFee)
+                }
+                [201, 207, 243, 114, 75, 111, 47, 189] => {
+                    create_config::CreateConfig::deserialize(data)
+                        .map(PumpSwapInstruction::CreateConfig)
+                }
+                [233, 146, 209, 142, 207, 104, 64, 188] => {
+                    create_pool::CreatePool::deserialize(data).map(PumpSwapInstruction::CreatePool)
+                }
+                [242, 35, 198, 137, 82, 225, 242, 182] => {
+                    deposit::Deposit::deserialize(data).map(PumpSwapInstruction::Deposit)
+                }
+                [185, 173, 187, 90, 216, 15, 238, 233] => {
+                    disable::Disable::deserialize(data).map(PumpSwapInstruction::Disable)
+                }
+                [234, 102, 194, 203, 150, 72, 62, 229] => {
+                    extend_account::ExtendAccount::deserialize(data).map(PumpSwapInstruction::ExtendAccount)
+                }
+                [94, 6, 202, 115, 255, 96, 232, 183] => {
+                    init_user_volume_accumulator::InitUserVolumeAccumulator::deserialize(data)
+                        .map(PumpSwapInstruction::InitUserVolumeAccumulator)
+                }
+                [51, 230, 133, 164, 1, 127, 131, 173] => {
+                    sell::Sell::deserialize(data).map(PumpSwapInstruction::Sell)
+                }
+                [210, 149, 128, 45, 188, 58, 78, 175] => {
+                    set_coin_creator::SetCoinCreator::deserialize(data)
+                        .map(PumpSwapInstruction::SetCoinCreator)
+                }
+                [86, 31, 192, 87, 163, 87, 79, 238] => {
+                    sync_user_volume_accumulator::SyncUserVolumeAccumulator::deserialize(data)
+                        .map(PumpSwapInstruction::SyncUserVolumeAccumulator)
+                }
+                [161, 176, 40, 213, 60, 184, 179, 228] => {
+                    update_admin::UpdateAdmin::deserialize(data).map(PumpSwapInstruction::UpdateAdmin)
+                }
+                [104, 184, 103, 242, 88, 151, 107, 20] => {
+                    update_fee_config::UpdateFeeConfig::deserialize(data)
+                        .map(PumpSwapInstruction::UpdateFeeConfig)
+                }
+                [183, 18, 70, 156, 148, 109, 161, 34] => {
+                    withdraw::Withdraw::deserialize(data).map(PumpSwapInstruction::Withdraw)
+                }
+                _ => None,
+            };
+
+            return decoded.map(|data| carbon_core::instruction::DecodedInstruction {
+                program_id: instruction.program_id,
+                accounts: instruction.accounts.clone(),
+                data,
+            });
+        }
     }
 }
