@@ -8,6 +8,8 @@ pub mod admin_set_coin_creator;
 pub mod admin_set_coin_creator_event;
 pub mod admin_update_token_incentives;
 pub mod admin_update_token_incentives_event;
+pub mod boost_buy_and_burn;
+pub mod boost_buy_and_burn_event;
 pub mod buy;
 pub mod buy_event;
 pub mod buy_exact_quote_in;
@@ -56,6 +58,7 @@ pub mod withdraw_event;
 pub enum PumpSwapInstruction {
     AdminSetCoinCreator(admin_set_coin_creator::AdminSetCoinCreator),
     AdminUpdateTokenIncentives(admin_update_token_incentives::AdminUpdateTokenIncentives),
+    BoostBuyAndBurn(boost_buy_and_burn::BoostBuyAndBurn),
     Buy(buy::Buy),
     BuyExactQuoteIn(buy_exact_quote_in::BuyExactQuoteIn),
     ClaimTokenIncentives(claim_token_incentives::ClaimTokenIncentives),
@@ -77,6 +80,7 @@ pub enum PumpSwapInstruction {
     AdminUpdateTokenIncentivesEvent(
         admin_update_token_incentives_event::AdminUpdateTokenIncentivesEvent,
     ),
+    BoostBuyAndBurnEvent(boost_buy_and_burn_event::BoostBuyAndBurnEvent),
     BuyEvent(buy_event::BuyEvent),
     ClaimTokenIncentivesEvent(claim_token_incentives_event::ClaimTokenIncentivesEvent),
     CloseUserVolumeAccumulatorEvent(
@@ -138,6 +142,10 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
             if data.len() >= 16 {
                 let disc16 = <[u8; 16]>::try_from(&data[..16]).ok()?;
                 let decoded = match disc16 {
+                    [228, 69, 165, 46, 81, 203, 154, 29, 63, 69, 28, 22, 48, 92, 194, 185] => {
+                        boost_buy_and_burn_event::BoostBuyAndBurnEvent::deserialize(data)
+                            .map(PumpSwapInstruction::BoostBuyAndBurnEvent)
+                    }
                     [228, 69, 165, 46, 81, 203, 154, 29, 103, 244, 82, 31, 44, 245, 119, 119] => {
                         buy_event::BuyEvent::deserialize(data).map(PumpSwapInstruction::BuyEvent)
                     }
@@ -161,6 +169,10 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
 
             let disc8 = <[u8; 8]>::try_from(&data[..8]).ok()?;
             let decoded = match disc8 {
+                [105, 68, 6, 175, 0, 7, 35, 162] => {
+                    boost_buy_and_burn::BoostBuyAndBurn::deserialize(data)
+                        .map(PumpSwapInstruction::BoostBuyAndBurn)
+                }
                 [102, 6, 61, 18, 1, 218, 235, 234] => {
                     buy::Buy::deserialize(data).map(PumpSwapInstruction::Buy)
                 }
@@ -189,6 +201,10 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
             if data.len() >= 16 {
                 let disc16 = <[u8; 16]>::try_from(&data[..16]).ok()?;
                 let decoded = match disc16 {
+                    [228, 69, 165, 46, 81, 203, 154, 29, 63, 69, 28, 22, 48, 92, 194, 185] => {
+                        boost_buy_and_burn_event::BoostBuyAndBurnEvent::deserialize(data)
+                            .map(PumpSwapInstruction::BoostBuyAndBurnEvent)
+                    }
                     [228, 69, 165, 46, 81, 203, 154, 29, 45, 220, 93, 24, 25, 97, 172, 104] => {
                         admin_set_coin_creator_event::AdminSetCoinCreatorEvent::deserialize(data)
                             .map(PumpSwapInstruction::AdminSetCoinCreatorEvent)
@@ -286,6 +302,10 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
 
             let disc8 = <[u8; 8]>::try_from(&data[..8]).ok()?;
             let decoded = match disc8 {
+                [105, 68, 6, 175, 0, 7, 35, 162] => {
+                    boost_buy_and_burn::BoostBuyAndBurn::deserialize(data)
+                        .map(PumpSwapInstruction::BoostBuyAndBurn)
+                }
                 [242, 40, 117, 145, 73, 96, 105, 104] => {
                     admin_set_coin_creator::AdminSetCoinCreator::deserialize(data)
                         .map(PumpSwapInstruction::AdminSetCoinCreator)
@@ -327,7 +347,8 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
                     disable::Disable::deserialize(data).map(PumpSwapInstruction::Disable)
                 }
                 [234, 102, 194, 203, 150, 72, 62, 229] => {
-                    extend_account::ExtendAccount::deserialize(data).map(PumpSwapInstruction::ExtendAccount)
+                    extend_account::ExtendAccount::deserialize(data)
+                        .map(PumpSwapInstruction::ExtendAccount)
                 }
                 [94, 6, 202, 115, 255, 96, 232, 183] => {
                     init_user_volume_accumulator::InitUserVolumeAccumulator::deserialize(data)
@@ -345,7 +366,8 @@ impl carbon_core::instruction::InstructionDecoder<'_> for PumpSwapDecoder {
                         .map(PumpSwapInstruction::SyncUserVolumeAccumulator)
                 }
                 [161, 176, 40, 213, 60, 184, 179, 228] => {
-                    update_admin::UpdateAdmin::deserialize(data).map(PumpSwapInstruction::UpdateAdmin)
+                    update_admin::UpdateAdmin::deserialize(data)
+                        .map(PumpSwapInstruction::UpdateAdmin)
                 }
                 [104, 184, 103, 242, 88, 151, 107, 20] => {
                     update_fee_config::UpdateFeeConfig::deserialize(data)
