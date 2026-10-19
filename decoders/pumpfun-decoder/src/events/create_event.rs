@@ -18,9 +18,13 @@ pub struct CreateEventEvent {
     pub token_total_supply: u64,
     pub token_program: Pubkey,
     pub is_mayhem_mode: bool,
+    pub is_cashback_enabled: bool,
+    pub quote_mint: Pubkey,
+    pub virtual_quote_reserves: u64,
 }
 
 impl CreateEventEvent {
+    #[inline]
     pub fn decode(data: &[u8]) -> Option<Self> {
         if data.len() < 8 {
             return None;
@@ -34,6 +38,50 @@ impl CreateEventEvent {
 
         data_slice = &data_slice[8..];
 
-        borsh::BorshDeserialize::deserialize(&mut data_slice).ok()
+        // Historical events stop at known version boundaries. Only complete
+        // extension groups may be absent; a partially present group is invalid.
+        let name: String = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let symbol: String = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let uri: String = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let mint: Pubkey = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let bonding_curve: Pubkey = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let user: Pubkey = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let creator: Pubkey = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let timestamp: i64 = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let virtual_token_reserves: u64 = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let virtual_sol_reserves: u64 = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let real_token_reserves: u64 = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let token_total_supply: u64 = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let token_program: Pubkey = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let is_mayhem_mode: bool = borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?;
+        let (is_cashback_enabled,): (bool,) = if data_slice.is_empty() {
+            (Default::default(),)
+        } else {
+            borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?
+        };
+        let (quote_mint, virtual_quote_reserves,): (Pubkey, u64,) = if data_slice.is_empty() {
+            (Pubkey::from_str_const("So11111111111111111111111111111111111111112"), virtual_sol_reserves,)
+        } else {
+            borsh::BorshDeserialize::deserialize(&mut data_slice).ok()?
+        };
+        Some(Self {
+            name,
+            symbol,
+            uri,
+            mint,
+            bonding_curve,
+            user,
+            creator,
+            timestamp,
+            virtual_token_reserves,
+            virtual_sol_reserves,
+            real_token_reserves,
+            token_total_supply,
+            token_program,
+            is_mayhem_mode,
+            is_cashback_enabled,
+            quote_mint,
+            virtual_quote_reserves,
+        })
     }
 }

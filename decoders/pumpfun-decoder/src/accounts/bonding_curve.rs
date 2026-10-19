@@ -2,16 +2,18 @@
 use solana_pubkey::Pubkey;
 
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[derive(Debug, Clone, borsh::BorshSerialize, borsh::BorshDeserialize, PartialEq)]
+#[derive(Debug, Clone, borsh::BorshSerialize, PartialEq)]
 pub struct BondingCurve {
     pub virtual_token_reserves: u64,
-    pub virtual_sol_reserves: u64,
+    pub virtual_quote_reserves: u64,
     pub real_token_reserves: u64,
-    pub real_sol_reserves: u64,
+    pub real_quote_reserves: u64,
     pub token_total_supply: u64,
     pub complete: bool,
     pub creator: Pubkey,
     pub is_mayhem_mode: bool,
+    pub is_cashback_coin: bool,
+    pub quote_mint: Pubkey,
 }
 
 impl BondingCurve {
@@ -29,5 +31,66 @@ impl BondingCurve {
         data_slice = &data_slice[8..];
 
         borsh::BorshDeserialize::deserialize(&mut data_slice).ok()
+    }
+}
+
+impl borsh::BorshDeserialize for BondingCurve {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        use borsh::BorshDeserialize;
+        let mut value = Self {
+            virtual_token_reserves: u64::deserialize_reader(reader)?,
+            virtual_quote_reserves: u64::deserialize_reader(reader)?,
+            real_token_reserves: u64::deserialize_reader(reader)?,
+            real_quote_reserves: u64::deserialize_reader(reader)?,
+            token_total_supply: u64::deserialize_reader(reader)?,
+            complete: bool::deserialize_reader(reader)?,
+            creator: Pubkey::deserialize_reader(reader)?,
+            is_mayhem_mode: bool::deserialize_reader(reader)?,
+            is_cashback_coin: false,
+            quote_mint: Pubkey::default(),
+        };
+        let mut flag = [0u8; 1];
+        if reader.read(&mut flag)? == 0 {
+            return Ok(value);
+        }
+        value.is_cashback_coin = bool::deserialize(&mut flag.as_slice())?;
+        let mut quote = [0u8; 32];
+        if reader.read(&mut quote[..1])? != 0 {
+            reader.read_exact(&mut quote[1..])?;
+            value.quote_mint = Pubkey::new_from_array(quote);
+        }
+        Ok(value)
+    }
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_curve_retains_sol_reserves_and_current_curve_retains_quote() {
+        let mut legacy = Vec::new();
+        for value in [100u64, 200, 300, 400, 500] {
+            legacy.extend_from_slice(&value.to_le_bytes());
+        }
+        legacy.push(0);
+        legacy.extend_from_slice(&[7u8; 32]);
+        legacy.push(1);
+        let old: BondingCurve = borsh::from_slice(&legacy).unwrap();
+        assert_eq!(old.virtual_quote_reserves, 200);
+        assert_eq!(old.real_quote_reserves, 400);
+        assert_eq!(old.creator, Pubkey::new_from_array([7; 32]));
+        assert!(old.is_mayhem_mode);
+        assert!(!old.is_cashback_coin);
+        assert_eq!(old.quote_mint, Pubkey::default());
+        legacy.push(1);
+        assert!(borsh::from_slice::<BondingCurve>(&legacy).unwrap().is_cashback_coin);
+        let start = legacy.len();
+        legacy.extend_from_slice(&[9u8; 32]);
+        let current: BondingCurve = borsh::from_slice(&legacy).unwrap();
+        assert_eq!(current.quote_mint, Pubkey::new_from_array([9; 32]));
+        for length in 1..32 {
+            assert!(borsh::from_slice::<BondingCurve>(&legacy[..start + length]).is_err());
+        }
     }
 }

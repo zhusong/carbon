@@ -8,7 +8,10 @@ workspace_crates=(
     carbon-test-utils
     carbon-core
 
-    # carbon-helius-atlas-ws-datasource
+    carbon-log-metrics
+    carbon-prometheus-metrics
+
+    carbon-helius-atlas-ws-datasource
     carbon-helius-gpa-v2-datasource
     carbon-helius-gtfa-datasource
     carbon-helius-laserstream-datasource
@@ -17,12 +20,9 @@ workspace_crates=(
     carbon-rpc-gpa-datasource
     carbon-rpc-program-subscribe-datasource
     carbon-rpc-transaction-crawler-datasource
-    carbon-jito-shredstream-grpc-datasource
-    carbon-yellowstone-grpc-datasource
     carbon-stream-message-datasource
-
-    carbon-log-metrics
-    carbon-prometheus-metrics
+    carbon-validator-snapshot-datasource
+    carbon-yellowstone-grpc-datasource
 
     carbon-address-lookup-table-decoder
     carbon-associated-token-account-decoder
@@ -37,6 +37,7 @@ workspace_crates=(
     carbon-gavel-decoder
     carbon-heaven-decoder
     carbon-jupiter-dca-decoder
+    carbon-jupiter-lend-decoder
     carbon-jupiter-limit-order-2-decoder
     carbon-jupiter-limit-order-decoder
     carbon-jupiter-perpetuals-decoder
@@ -50,23 +51,22 @@ workspace_crates=(
     carbon-marinade-finance-decoder
     carbon-memo-program-decoder
     carbon-meteora-damm-v2-decoder
+    carbon-meteora-dbc-decoder
     carbon-meteora-dlmm-decoder
     carbon-meteora-pools-decoder
     carbon-meteora-vault-decoder
-    carbon-meteora-dbc-decoder
     carbon-moonshot-decoder
     carbon-mpl-core-decoder
     carbon-mpl-token-metadata-decoder
     carbon-name-service-decoder
     carbon-okx-dex-decoder
-    carbon-onchain-labs-dex-v1-decoder
     carbon-onchain-labs-dex-v2-decoder
     carbon-openbook-v2-decoder
     carbon-orca-whirlpool-decoder
     carbon-pancake-swap-decoder
     carbon-phoenix-v1-decoder
-    carbon-pump-swap-decoder
     carbon-pump-fees-decoder
+    carbon-pump-swap-decoder
     carbon-pumpfun-decoder
     carbon-raydium-amm-v4-decoder
     carbon-raydium-clmm-decoder
@@ -83,16 +83,14 @@ workspace_crates=(
     carbon-system-program-decoder
     carbon-token-2022-decoder
     carbon-token-program-decoder
-    carbon-validator-snapshot-datasource
     carbon-vertigo-decoder
     carbon-virtuals-decoder
     carbon-wavebreak-decoder
     carbon-zeta-decoder
-   
 )
 
 for crate in "${workspace_crates[@]}"; do
     echo "--- $crate"
-    # cargo package -p $crate
-    cargo publish -p $crate --allow-dirty
+    # cargo package -p "$crate"
+    cargo publish -p "$crate" --allow-dirty
 done

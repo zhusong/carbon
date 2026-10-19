@@ -1,15 +1,16 @@
+//! Fork compatibility: retain the deployed boost/burn instruction on Carbon 2.
 use carbon_core::account_utils::next_account;
-use carbon_core::{borsh, CarbonDeserialize};
-use serde::{Deserialize, Serialize};
+use borsh::{BorshDeserialize, BorshSerialize};
 
-#[derive(CarbonDeserialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone, Hash)]
-#[carbon(discriminator = "0x694406af000723a2")]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoostBuyAndBurn {
     pub quote_amount_in: u64,
     pub min_base_amount_burned: u64,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[derive(Debug, PartialEq, Eq, Clone, Hash)]
 pub struct BoostBuyAndBurnInstructionAccounts {
     pub pool: solana_pubkey::Pubkey,
     pub authority: solana_pubkey::Pubkey,
@@ -62,5 +63,14 @@ impl carbon_core::deserialize::ArrangeAccounts for BoostBuyAndBurn {
             event_authority,
             program,
         })
+    }
+}
+
+impl BoostBuyAndBurn {
+    pub fn decode(data: &[u8]) -> Option<Self> {
+        if data.get(..8)? != [105, 68, 6, 175, 0, 7, 35, 162] {
+            return None;
+        }
+        Self::deserialize(&mut &data[8..]).ok()
     }
 }

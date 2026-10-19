@@ -31,6 +31,7 @@ impl CpiEventRow {
                 CpiEvent::AdminUpdateTokenIncentivesEvent(_) => {
                     "admin_update_token_incentives_event".to_string()
                 }
+                CpiEvent::ClaimCashbackEvent(_) => "claim_cashback_event".to_string(),
                 CpiEvent::ClaimTokenIncentivesEvent(_) => {
                     "claim_token_incentives_event".to_string()
                 }
@@ -43,9 +44,18 @@ impl CpiEventRow {
                     "complete_pump_amm_migration_event".to_string()
                 }
                 CpiEvent::CreateEvent(_) => "create_event".to_string(),
+                CpiEvent::DistributeCreatorFeesEvent(_) => {
+                    "distribute_creator_fees_event".to_string()
+                }
                 CpiEvent::ExtendAccountEvent(_) => "extend_account_event".to_string(),
                 CpiEvent::InitUserVolumeAccumulatorEvent(_) => {
                     "init_user_volume_accumulator_event".to_string()
+                }
+                CpiEvent::MigrateBondingCurveCreatorEvent(_) => {
+                    "migrate_bonding_curve_creator_event".to_string()
+                }
+                CpiEvent::MinimumDistributableFeeEvent(_) => {
+                    "minimum_distributable_fee_event".to_string()
                 }
                 CpiEvent::ReservedFeeRecipientsEvent(_) => {
                     "reserved_fee_recipients_event".to_string()
@@ -175,7 +185,7 @@ impl carbon_core::postgres::operations::Delete for CpiEventRow {
 }
 
 #[async_trait::async_trait]
-impl carbon_core::postgres::operations::LookUp for CpiEventRow {
+impl carbon_core::postgres::operations::Lookup for CpiEventRow {
     type Key = (
         String,
         carbon_core::postgres::primitives::U32,

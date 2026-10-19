@@ -19,6 +19,7 @@ pub enum CpiEvent {
     AdminUpdateTokenIncentivesEvent(
         events::admin_update_token_incentives_event::AdminUpdateTokenIncentivesEventEvent,
     ),
+    ClaimCashbackEvent(events::claim_cashback_event::ClaimCashbackEventEvent),
     ClaimTokenIncentivesEvent(events::claim_token_incentives_event::ClaimTokenIncentivesEventEvent),
     CloseUserVolumeAccumulatorEvent(
         events::close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEventEvent,
@@ -29,9 +30,18 @@ pub enum CpiEvent {
         events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent,
     ),
     CreateEvent(events::create_event::CreateEventEvent),
+    DistributeCreatorFeesEvent(
+        events::distribute_creator_fees_event::DistributeCreatorFeesEventEvent,
+    ),
     ExtendAccountEvent(events::extend_account_event::ExtendAccountEventEvent),
     InitUserVolumeAccumulatorEvent(
         events::init_user_volume_accumulator_event::InitUserVolumeAccumulatorEventEvent,
+    ),
+    MigrateBondingCurveCreatorEvent(
+        events::migrate_bonding_curve_creator_event::MigrateBondingCurveCreatorEventEvent,
+    ),
+    MinimumDistributableFeeEvent(
+        events::minimum_distributable_fee_event::MinimumDistributableFeeEventEvent,
     ),
     ReservedFeeRecipientsEvent(
         events::reserved_fee_recipients_event::ReservedFeeRecipientsEventEvent,
@@ -60,141 +70,57 @@ pub struct CpiEventInstructionAccounts {
 }
 
 impl CpiEvent {
+    #[inline]
     pub fn decode(data: &[u8]) -> Option<Self> {
-        if data.len() < 8 {
+        if data.get(..8)? != [228, 69, 165, 46, 81, 203, 154, 29] {
             return None;
         }
-        let discriminator = &data[0..8];
-        if discriminator != [228, 69, 165, 46, 81, 203, 154, 29] {
-            return None;
-        }
-
-        let event_data = &data[8..];
-        if event_data.len() < 8 {
-            return None;
-        }
-
-        let event_disc = <[u8; 8]>::try_from(&event_data[..8]).ok()?;
-
-        #[cfg(feature = "minimal-events")]
-        match event_disc {
-            [27, 114, 169, 77, 222, 235, 99, 118] => {
-                events::create_event::CreateEventEvent::decode(event_data)
-                    .map(CpiEvent::CreateEvent)
-            }
-            [189, 219, 127, 211, 78, 230, 97, 238] => {
-                events::trade_event::TradeEventEvent::decode(event_data)
-                    .map(CpiEvent::TradeEvent)
-            }
-            [189, 233, 93, 185, 92, 148, 234, 148] => {
-                events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::CompletePumpAmmMigrationEvent)
-            }
-            _ => None,
-        }
-
-        #[cfg(not(feature = "minimal-events"))]
-        match event_disc {
-            [27, 114, 169, 77, 222, 235, 99, 118] => {
-                events::create_event::CreateEventEvent::decode(event_data)
-                    .map(CpiEvent::CreateEvent)
-            }
-            [189, 219, 127, 211, 78, 230, 97, 238] => {
-                events::trade_event::TradeEventEvent::decode(event_data)
-                    .map(CpiEvent::TradeEvent)
-            }
-            [189, 233, 93, 185, 92, 148, 234, 148] => {
-                events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::CompletePumpAmmMigrationEvent)
-            }
-            [64, 69, 192, 104, 29, 30, 25, 107] => {
-                events::admin_set_creator_event::AdminSetCreatorEventEvent::decode(event_data)
-                    .map(CpiEvent::AdminSetCreatorEvent)
-            }
-            [245, 59, 70, 34, 75, 185, 109, 92] => {
-                events::admin_set_idl_authority_event::AdminSetIdlAuthorityEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::AdminSetIdlAuthorityEvent)
-            }
-            [147, 250, 108, 120, 247, 29, 67, 222] => {
-                events::admin_update_token_incentives_event::AdminUpdateTokenIncentivesEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::AdminUpdateTokenIncentivesEvent)
-            }
-            [79, 172, 246, 49, 205, 91, 206, 232] => {
-                events::claim_token_incentives_event::ClaimTokenIncentivesEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::ClaimTokenIncentivesEvent)
-            }
-            [146, 159, 189, 172, 146, 88, 56, 244] => {
-                events::close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::CloseUserVolumeAccumulatorEvent)
-            }
-            [122, 2, 127, 1, 14, 191, 12, 175] => {
-                events::collect_creator_fee_event::CollectCreatorFeeEventEvent::decode(event_data)
-                    .map(CpiEvent::CollectCreatorFeeEvent)
-            }
-            [95, 114, 97, 156, 212, 46, 152, 8] => {
-                events::complete_event::CompleteEventEvent::decode(event_data)
-                    .map(CpiEvent::CompleteEvent)
-            }
-            [97, 97, 215, 144, 93, 146, 22, 124] => {
-                events::extend_account_event::ExtendAccountEventEvent::decode(event_data)
-                    .map(CpiEvent::ExtendAccountEvent)
-            }
-            [134, 36, 13, 72, 232, 101, 130, 216] => {
-                events::init_user_volume_accumulator_event::InitUserVolumeAccumulatorEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::InitUserVolumeAccumulatorEvent)
-            }
-            [43, 188, 250, 18, 221, 75, 187, 95] => {
-                events::reserved_fee_recipients_event::ReservedFeeRecipientsEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::ReservedFeeRecipientsEvent)
-            }
-            [237, 52, 123, 37, 245, 251, 72, 210] => {
-                events::set_creator_event::SetCreatorEventEvent::decode(event_data)
-                    .map(CpiEvent::SetCreatorEvent)
-            }
-            [142, 203, 6, 32, 127, 105, 191, 162] => {
-                events::set_metaplex_creator_event::SetMetaplexCreatorEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::SetMetaplexCreatorEvent)
-            }
-            [223, 195, 159, 246, 62, 48, 143, 131] => {
-                events::set_params_event::SetParamsEventEvent::decode(event_data)
-                    .map(CpiEvent::SetParamsEvent)
-            }
-            [197, 122, 167, 124, 116, 81, 91, 255] => {
-                events::sync_user_volume_accumulator_event::SyncUserVolumeAccumulatorEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::SyncUserVolumeAccumulatorEvent)
-            }
-            [182, 195, 137, 42, 35, 206, 207, 247] => {
-                events::update_global_authority_event::UpdateGlobalAuthorityEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::UpdateGlobalAuthorityEvent)
-            }
-            [117, 123, 228, 182, 161, 168, 220, 214] => {
-                events::update_mayhem_virtual_params_event::UpdateMayhemVirtualParamsEventEvent::decode(
-                    event_data,
-                )
-                .map(CpiEvent::UpdateMayhemVirtualParamsEvent)
-            }
+        let event_data = data.get(8..)?;
+        let discriminator: [u8; 8] = event_data.get(..8)?.try_into().ok()?;
+        // Unknown events must not probe every supported event decoder.
+        match discriminator {
+            #[cfg(not(feature = "minimal-events"))]
+            [64, 69, 192, 104, 29, 30, 25, 107] => events::admin_set_creator_event::AdminSetCreatorEventEvent::decode(event_data).map(Self::AdminSetCreatorEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [245, 59, 70, 34, 75, 185, 109, 92] => events::admin_set_idl_authority_event::AdminSetIdlAuthorityEventEvent::decode(event_data).map(Self::AdminSetIdlAuthorityEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [147, 250, 108, 120, 247, 29, 67, 222] => events::admin_update_token_incentives_event::AdminUpdateTokenIncentivesEventEvent::decode(event_data).map(Self::AdminUpdateTokenIncentivesEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [226, 214, 246, 33, 7, 242, 147, 229] => events::claim_cashback_event::ClaimCashbackEventEvent::decode(event_data).map(Self::ClaimCashbackEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [79, 172, 246, 49, 205, 91, 206, 232] => events::claim_token_incentives_event::ClaimTokenIncentivesEventEvent::decode(event_data).map(Self::ClaimTokenIncentivesEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [146, 159, 189, 172, 146, 88, 56, 244] => events::close_user_volume_accumulator_event::CloseUserVolumeAccumulatorEventEvent::decode(event_data).map(Self::CloseUserVolumeAccumulatorEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [122, 2, 127, 1, 14, 191, 12, 175] => events::collect_creator_fee_event::CollectCreatorFeeEventEvent::decode(event_data).map(Self::CollectCreatorFeeEvent),
+            [95, 114, 97, 156, 212, 46, 152, 8] => events::complete_event::CompleteEventEvent::decode(event_data).map(Self::CompleteEvent),
+            [189, 233, 93, 185, 92, 148, 234, 148] => events::complete_pump_amm_migration_event::CompletePumpAmmMigrationEventEvent::decode(event_data).map(Self::CompletePumpAmmMigrationEvent),
+            [27, 114, 169, 77, 222, 235, 99, 118] => events::create_event::CreateEventEvent::decode(event_data).map(Self::CreateEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [165, 55, 129, 112, 4, 179, 202, 40] => events::distribute_creator_fees_event::DistributeCreatorFeesEventEvent::decode(event_data).map(Self::DistributeCreatorFeesEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [97, 97, 215, 144, 93, 146, 22, 124] => events::extend_account_event::ExtendAccountEventEvent::decode(event_data).map(Self::ExtendAccountEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [134, 36, 13, 72, 232, 101, 130, 216] => events::init_user_volume_accumulator_event::InitUserVolumeAccumulatorEventEvent::decode(event_data).map(Self::InitUserVolumeAccumulatorEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [155, 167, 104, 220, 213, 108, 243, 3] => events::migrate_bonding_curve_creator_event::MigrateBondingCurveCreatorEventEvent::decode(event_data).map(Self::MigrateBondingCurveCreatorEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [168, 216, 132, 239, 235, 182, 49, 52] => events::minimum_distributable_fee_event::MinimumDistributableFeeEventEvent::decode(event_data).map(Self::MinimumDistributableFeeEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [43, 188, 250, 18, 221, 75, 187, 95] => events::reserved_fee_recipients_event::ReservedFeeRecipientsEventEvent::decode(event_data).map(Self::ReservedFeeRecipientsEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [237, 52, 123, 37, 245, 251, 72, 210] => events::set_creator_event::SetCreatorEventEvent::decode(event_data).map(Self::SetCreatorEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [142, 203, 6, 32, 127, 105, 191, 162] => events::set_metaplex_creator_event::SetMetaplexCreatorEventEvent::decode(event_data).map(Self::SetMetaplexCreatorEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [223, 195, 159, 246, 62, 48, 143, 131] => events::set_params_event::SetParamsEventEvent::decode(event_data).map(Self::SetParamsEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [197, 122, 167, 124, 116, 81, 91, 255] => events::sync_user_volume_accumulator_event::SyncUserVolumeAccumulatorEventEvent::decode(event_data).map(Self::SyncUserVolumeAccumulatorEvent),
+            [189, 219, 127, 211, 78, 230, 97, 238] => events::trade_event::TradeEventEvent::decode(event_data).map(Self::TradeEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [182, 195, 137, 42, 35, 206, 207, 247] => events::update_global_authority_event::UpdateGlobalAuthorityEventEvent::decode(event_data).map(Self::UpdateGlobalAuthorityEvent),
+            #[cfg(not(feature = "minimal-events"))]
+            [117, 123, 228, 182, 161, 168, 220, 214] => events::update_mayhem_virtual_params_event::UpdateMayhemVirtualParamsEventEvent::decode(event_data).map(Self::UpdateMayhemVirtualParamsEvent),
             _ => None,
         }
     }
@@ -206,14 +132,18 @@ impl ArrangeAccounts for CpiEvent {
     fn arrange_accounts(
         accounts: &[solana_instruction::AccountMeta],
     ) -> Option<Self::ArrangedAccounts> {
-        let [program, event_authority, remaining @ ..] = accounts else {
-            return None;
-        };
-
-        Some(CpiEventInstructionAccounts {
-            program: program.pubkey,
-            event_authority: event_authority.pubkey,
-            remaining: remaining.to_vec(),
-        })
+        match accounts {
+            [program, event_authority, remaining @ ..] => Some(CpiEventInstructionAccounts {
+                program: program.pubkey,
+                event_authority: event_authority.pubkey,
+                remaining: remaining.to_vec(),
+            }),
+            [event_authority] => Some(CpiEventInstructionAccounts {
+                program: crate::PROGRAM_ID,
+                event_authority: event_authority.pubkey,
+                remaining: Vec::new(),
+            }),
+            _ => None,
+        }
     }
 }

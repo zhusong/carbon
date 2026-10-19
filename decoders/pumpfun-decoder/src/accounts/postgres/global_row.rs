@@ -31,6 +31,11 @@ pub struct GlobalRow {
     pub reserved_fee_recipient: Pubkey,
     pub mayhem_mode_enabled: bool,
     pub reserved_fee_recipients: Vec<Pubkey>,
+    pub is_cashback_enabled: bool,
+    pub buyback_fee_recipients: Vec<Pubkey>,
+    pub buyback_basis_points: U64,
+    pub initial_virtual_quote_reserves: U64,
+    pub whitelisted_quote_mints: Vec<Pubkey>,
 }
 
 impl GlobalRow {
@@ -62,6 +67,19 @@ impl GlobalRow {
             mayhem_mode_enabled: source.mayhem_mode_enabled,
             reserved_fee_recipients: source
                 .reserved_fee_recipients
+                .into_iter()
+                .map(|element| element.into())
+                .collect(),
+            is_cashback_enabled: source.is_cashback_enabled,
+            buyback_fee_recipients: source
+                .buyback_fee_recipients
+                .into_iter()
+                .map(|element| element.into())
+                .collect(),
+            buyback_basis_points: source.buyback_basis_points.into(),
+            initial_virtual_quote_reserves: source.initial_virtual_quote_reserves.into(),
+            whitelisted_quote_mints: source
+                .whitelisted_quote_mints
                 .into_iter()
                 .map(|element| element.into())
                 .collect(),
@@ -123,6 +141,41 @@ impl TryFrom<GlobalRow> for crate::accounts::global::Global {
                         "Failed to convert array element to primitive".to_string(),
                     )
                 })?,
+            is_cashback_enabled: source.is_cashback_enabled,
+            buyback_fee_recipients: source
+                .buyback_fee_recipients
+                .into_iter()
+                .map(|element| Ok(*element))
+                .collect::<Result<Vec<_>, carbon_core::error::Error>>()
+                .map_err(|_| {
+                    carbon_core::error::Error::Custom(
+                        "Failed to collect array elements".to_string(),
+                    )
+                })?
+                .try_into()
+                .map_err(|_| {
+                    carbon_core::error::Error::Custom(
+                        "Failed to convert array element to primitive".to_string(),
+                    )
+                })?,
+            buyback_basis_points: *source.buyback_basis_points,
+            initial_virtual_quote_reserves: *source.initial_virtual_quote_reserves,
+            whitelisted_quote_mints: source
+                .whitelisted_quote_mints
+                .into_iter()
+                .map(|element| Ok(*element))
+                .collect::<Result<Vec<_>, carbon_core::error::Error>>()
+                .map_err(|_| {
+                    carbon_core::error::Error::Custom(
+                        "Failed to collect array elements".to_string(),
+                    )
+                })?
+                .try_into()
+                .map_err(|_| {
+                    carbon_core::error::Error::Custom(
+                        "Failed to convert array element to primitive".to_string(),
+                    )
+                })?,
         })
     }
 }
@@ -156,6 +209,11 @@ impl carbon_core::postgres::operations::Table for crate::accounts::global::Globa
             "reserved_fee_recipient",
             "mayhem_mode_enabled",
             "reserved_fee_recipients",
+            "is_cashback_enabled",
+            "buyback_fee_recipients",
+            "buyback_basis_points",
+            "initial_virtual_quote_reserves",
+            "whitelisted_quote_mints",
         ]
     }
 }
@@ -185,9 +243,14 @@ impl carbon_core::postgres::operations::Insert for GlobalRow {
                 "reserved_fee_recipient",
                 "mayhem_mode_enabled",
                 "reserved_fee_recipients",
+                "is_cashback_enabled",
+                "buyback_fee_recipients",
+                "buyback_basis_points",
+                "initial_virtual_quote_reserves",
+                "whitelisted_quote_mints",
                 __pubkey, __slot
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
             )"#)
         .bind(self.initialized)
         .bind(self.authority)
@@ -209,6 +272,11 @@ impl carbon_core::postgres::operations::Insert for GlobalRow {
         .bind(self.reserved_fee_recipient)
         .bind(self.mayhem_mode_enabled)
         .bind(&self.reserved_fee_recipients)
+        .bind(self.is_cashback_enabled)
+        .bind(&self.buyback_fee_recipients)
+        .bind(&self.buyback_basis_points)
+        .bind(&self.initial_virtual_quote_reserves)
+        .bind(&self.whitelisted_quote_mints)
         .bind(self.account_metadata.pubkey)
         .bind(&self.account_metadata.slot)
         .execute(pool).await
@@ -241,9 +309,14 @@ impl carbon_core::postgres::operations::Upsert for GlobalRow {
                 "reserved_fee_recipient",
                 "mayhem_mode_enabled",
                 "reserved_fee_recipients",
+                "is_cashback_enabled",
+                "buyback_fee_recipients",
+                "buyback_basis_points",
+                "initial_virtual_quote_reserves",
+                "whitelisted_quote_mints",
                 __pubkey, __slot
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27
             ) ON CONFLICT (
                 __pubkey
             ) DO UPDATE SET
@@ -267,6 +340,11 @@ impl carbon_core::postgres::operations::Upsert for GlobalRow {
                 "reserved_fee_recipient" = EXCLUDED."reserved_fee_recipient",
                 "mayhem_mode_enabled" = EXCLUDED."mayhem_mode_enabled",
                 "reserved_fee_recipients" = EXCLUDED."reserved_fee_recipients",
+                "is_cashback_enabled" = EXCLUDED."is_cashback_enabled",
+                "buyback_fee_recipients" = EXCLUDED."buyback_fee_recipients",
+                "buyback_basis_points" = EXCLUDED."buyback_basis_points",
+                "initial_virtual_quote_reserves" = EXCLUDED."initial_virtual_quote_reserves",
+                "whitelisted_quote_mints" = EXCLUDED."whitelisted_quote_mints",
                 __slot = EXCLUDED.__slot
             "#)
         .bind(self.initialized)
@@ -289,6 +367,11 @@ impl carbon_core::postgres::operations::Upsert for GlobalRow {
         .bind(self.reserved_fee_recipient)
         .bind(self.mayhem_mode_enabled)
         .bind(&self.reserved_fee_recipients)
+        .bind(self.is_cashback_enabled)
+        .bind(&self.buyback_fee_recipients)
+        .bind(&self.buyback_basis_points)
+        .bind(&self.initial_virtual_quote_reserves)
+        .bind(&self.whitelisted_quote_mints)
         .bind(self.account_metadata.pubkey)
         .bind(&self.account_metadata.slot)
         .execute(pool).await
@@ -316,7 +399,7 @@ impl carbon_core::postgres::operations::Delete for GlobalRow {
 }
 
 #[async_trait::async_trait]
-impl carbon_core::postgres::operations::LookUp for GlobalRow {
+impl carbon_core::postgres::operations::Lookup for GlobalRow {
     type Key = carbon_core::postgres::primitives::Pubkey;
 
     async fn lookup(
@@ -367,6 +450,11 @@ impl sqlx_migrator::Operation<sqlx::Postgres> for GlobalMigrationOperation {
                 "reserved_fee_recipient" BYTEA NOT NULL,
                 "mayhem_mode_enabled" BOOLEAN NOT NULL,
                 "reserved_fee_recipients" BYTEA[] NOT NULL,
+                "is_cashback_enabled" BOOLEAN NOT NULL,
+                "buyback_fee_recipients" BYTEA[] NOT NULL,
+                "buyback_basis_points" NUMERIC(20) NOT NULL,
+                "initial_virtual_quote_reserves" NUMERIC(20) NOT NULL,
+                "whitelisted_quote_mints" BYTEA[] NOT NULL,
                 -- Account metadata
                 __pubkey BYTEA NOT NULL,
                 __slot NUMERIC(20),

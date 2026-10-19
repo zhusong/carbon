@@ -2,31 +2,22 @@ use {
     async_trait::async_trait,
     carbon_core::{
         datasource::{
-            AccountDeletion, AccountUpdate, Datasource, DatasourceId, TransactionUpdate, Update,
-            UpdateType,
+            AccountUpdate, Datasource, DatasourceId, TransactionUpdate, Update, UpdateType,
         },
         error::CarbonResult,
-        metrics::MetricsCollection,
+        metrics::{Counter, Histogram, MetricsRegistry},
+        transformers::yellowstone::{create_tx_meta, create_tx_versioned},
     },
     futures::{sink::SinkExt, StreamExt},
     solana_account::Account,
     solana_pubkey::Pubkey,
     solana_signature::Signature,
-    std::{
-        collections::{HashMap, HashSet},
-        convert::TryFrom,
-        sync::Arc,
-        time::Duration,
-    },
-    tokio::{
-        sync::{mpsc::Sender, RwLock},
-        time::sleep,
-    },
+    std::{collections::HashMap, convert::TryFrom, sync::LazyLock, time::Duration},
+    tokio::{sync::mpsc::Sender, time::sleep},
     tokio_util::sync::CancellationToken,
     uuid::Uuid,
     yellowstone_grpc_client::{GeyserGrpcBuilder, GeyserGrpcBuilderResult, GeyserGrpcClient},
     yellowstone_grpc_proto::{
-        convert_from::{create_tx_meta, create_tx_versioned},
         geyser::{
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
             SubscribeRequestFilterAccounts, SubscribeRequestFilterBlocks,
@@ -40,6 +31,74 @@ use {
 const MAX_RECONNECTION_ATTEMPTS: u32 = 10;
 const RECONNECTION_DELAY_MS: u64 = 3000;
 
+static ACCOUNT_PROCESS_TIME_NANOS: LazyLock<Histogram> = LazyLock::new(|| {
+    Histogram::new(
+        "laserstream_account_process_time_nanoseconds",
+        "Time to process account update in nanoseconds",
+        vec![
+            1_000.0,
+            10_000.0,
+            100_000.0,
+            1_000_000.0,
+            10_000_000.0,
+            100_000_000.0,
+            1_000_000_000.0,
+        ],
+    )
+});
+static ACCOUNT_UPDATES_RECEIVED: Counter = Counter::new(
+    "laserstream_account_updates_received_total",
+    "Account updates received from Laserstream",
+);
+static ACCOUNT_DELETION_PROCESS_TIME_NANOS: LazyLock<Histogram> = LazyLock::new(|| {
+    Histogram::new(
+        "laserstream_account_deletion_process_time_nanoseconds",
+        "Time to process account deletions in nanoseconds",
+        vec![
+            1_000.0,
+            10_000.0,
+            100_000.0,
+            1_000_000.0,
+            10_000_000.0,
+            100_000_000.0,
+            1_000_000_000.0,
+        ],
+    )
+});
+static ACCOUNT_DELETIONS_RECEIVED: Counter = Counter::new(
+    "laserstream_account_deletions_received_total",
+    "Account deletions received from Laserstream",
+);
+static TRANSACTION_PROCESS_TIME_NANOS: LazyLock<Histogram> = LazyLock::new(|| {
+    Histogram::new(
+        "laserstream_transaction_process_time_nanoseconds",
+        "Time to process transaction update in nanoseconds",
+        vec![
+            1_000.0,
+            10_000.0,
+            100_000.0,
+            1_000_000.0,
+            10_000_000.0,
+            100_000_000.0,
+            1_000_000_000.0,
+        ],
+    )
+});
+static TRANSACTION_UPDATES_RECEIVED: Counter = Counter::new(
+    "laserstream_transaction_updates_received_total",
+    "Transaction updates received from Laserstream",
+);
+
+fn register_laserstream_metrics() {
+    let registry = MetricsRegistry::global();
+    registry.register_counter(&ACCOUNT_UPDATES_RECEIVED);
+    registry.register_counter(&ACCOUNT_DELETIONS_RECEIVED);
+    registry.register_counter(&TRANSACTION_UPDATES_RECEIVED);
+    registry.register_histogram(&ACCOUNT_PROCESS_TIME_NANOS);
+    registry.register_histogram(&ACCOUNT_DELETION_PROCESS_TIME_NANOS);
+    registry.register_histogram(&TRANSACTION_PROCESS_TIME_NANOS);
+}
+
 #[derive(Debug)]
 pub struct LaserStreamGeyserClient {
     pub endpoint: String,
@@ -48,7 +107,6 @@ pub struct LaserStreamGeyserClient {
     pub account_filters: HashMap<String, SubscribeRequestFilterAccounts>,
     pub transaction_filters: HashMap<String, SubscribeRequestFilterTransactions>,
     pub block_filters: BlockFilters,
-    pub account_deletions_tracked: Arc<RwLock<HashSet<Pubkey>>>,
     pub geyser_config: LaserStreamClientConfig,
 }
 
@@ -61,6 +119,7 @@ pub struct LaserStreamClientConfig {
     pub tls_config: Option<ClientTlsConfig>,
     pub tcp_nodelay: Option<bool>,
     pub replay_enabled: bool,
+    pub from_slot: Option<u64>,
 }
 
 impl Default for LaserStreamClientConfig {
@@ -73,6 +132,7 @@ impl Default for LaserStreamClientConfig {
             tls_config: None,
             tcp_nodelay: None,
             replay_enabled: true,
+            from_slot: None,
         }
     }
 }
@@ -92,7 +152,6 @@ impl LaserStreamGeyserClient {
         account_filters: HashMap<String, SubscribeRequestFilterAccounts>,
         transaction_filters: HashMap<String, SubscribeRequestFilterTransactions>,
         block_filters: BlockFilters,
-        account_deletions_tracked: Arc<RwLock<HashSet<Pubkey>>>,
         geyser_config: LaserStreamClientConfig,
     ) -> Self {
         LaserStreamGeyserClient {
@@ -102,13 +161,13 @@ impl LaserStreamGeyserClient {
             account_filters,
             transaction_filters,
             block_filters,
-            account_deletions_tracked,
             geyser_config,
         }
     }
 }
 
 impl LaserStreamClientConfig {
+    #[allow(clippy::too_many_arguments)]
     pub const fn new(
         compression: Option<CompressionEncoding>,
         connect_timeout: Option<Duration>,
@@ -117,6 +176,7 @@ impl LaserStreamClientConfig {
         tls_config: Option<ClientTlsConfig>,
         tcp_nodelay: Option<bool>,
         replay_enabled: bool,
+        from_slot: Option<u64>,
     ) -> Self {
         LaserStreamClientConfig {
             compression,
@@ -126,6 +186,7 @@ impl LaserStreamClientConfig {
             tls_config,
             tcp_nodelay,
             replay_enabled,
+            from_slot,
         }
     }
 
@@ -165,14 +226,13 @@ impl Datasource for LaserStreamGeyserClient {
         id: DatasourceId,
         sender: Sender<(Update, DatasourceId)>,
         cancellation_token: CancellationToken,
-        metrics: Arc<MetricsCollection>,
     ) -> CarbonResult<()> {
+        register_laserstream_metrics();
         let endpoint = self.endpoint.clone();
         let x_token = self.x_token.clone();
         let commitment = self.commitment;
         let account_filters = self.account_filters.clone();
         let transaction_filters = self.transaction_filters.clone();
-        let account_deletions_tracked = self.account_deletions_tracked.clone();
         let BlockFilters {
             filters,
             failed_transactions: block_failed_transactions,
@@ -208,7 +268,7 @@ impl Datasource for LaserStreamGeyserClient {
                 commitment: commitment.map(|x| x as i32),
                 accounts_data_slice: vec![],
                 ping: None,
-                from_slot: None,
+                from_slot: geyser_config.from_slot,
             };
 
             let internal_slot_sub_id = if replay_enabled {
@@ -266,18 +326,15 @@ impl Datasource for LaserStreamGeyserClient {
                                             Some(UpdateOneof::Account(account_update)) => {
                                                 send_subscribe_account_update_info(
                                                     account_update.account,
-                                                    &metrics,
                                                     &sender,
                                                     id_for_loop.clone(),
                                                     account_update.slot,
-                                                    &account_deletions_tracked,
                                                 )
                                                 .await
                                             }
                                             Some(UpdateOneof::Transaction(transaction_update)) => {
                                                 send_subscribe_update_transaction_info(
                                                     transaction_update.transaction,
-                                                    &metrics,
                                                     &sender,
                                                     id_for_loop.clone(),
                                                     transaction_update.slot,
@@ -289,18 +346,16 @@ impl Datasource for LaserStreamGeyserClient {
 
                                                 for transaction_update in block_update.transactions {
                                                     if retain_block_failed_transactions || transaction_update.meta.as_ref().map(|meta| meta.err.is_none()).unwrap_or(false) {
-                                                        send_subscribe_update_transaction_info(Some(transaction_update), &metrics, &sender, id_for_loop.clone(), block_update.slot, block_time).await
+                                                        send_subscribe_update_transaction_info(Some(transaction_update), &sender, id_for_loop.clone(), block_update.slot, block_time).await
                                                     }
                                                 }
 
                                                 for account_info in block_update.accounts {
                                                     send_subscribe_account_update_info(
                                                         Some(account_info),
-                                                        &metrics,
                                                         &sender,
                                                         id_for_loop.clone(),
                                                         block_update.slot,
-                                                        &account_deletions_tracked,
                                                     )
                                                     .await;
                                                 }
@@ -375,11 +430,9 @@ impl Datasource for LaserStreamGeyserClient {
 
 async fn send_subscribe_account_update_info(
     account_update_info: Option<SubscribeUpdateAccountInfo>,
-    metrics: &MetricsCollection,
     sender: &Sender<(Update, DatasourceId)>,
     id: DatasourceId,
     slot: u64,
-    account_deletions_tracked: &RwLock<HashSet<Pubkey>>,
 ) {
     let start_time = std::time::Instant::now();
 
@@ -400,54 +453,30 @@ async fn send_subscribe_account_update_info(
             rent_epoch: account_info.rent_epoch,
         };
 
-        if account.lamports == 0
-            && account.data.is_empty()
-            && account_owner_pubkey == solana_system_interface::program::ID
-        {
-            let accounts = account_deletions_tracked.read().await;
-            if accounts.contains(&account_pubkey) {
-                let account_deletion = AccountDeletion {
-                    pubkey: account_pubkey,
-                    slot,
-                    transaction_signature: account_info
-                        .txn_signature
-                        .and_then(|sig| Signature::try_from(sig).ok()),
-                };
-                if let Err(e) = sender.try_send((Update::AccountDeletion(account_deletion), id)) {
-                    log::error!(
-                        "Failed to send account deletion update for pubkey {account_pubkey:?} at slot {slot}: {e:?}"
-                    );
-                }
-            }
-        } else {
-            let update = Update::Account(AccountUpdate {
-                pubkey: account_pubkey,
-                account,
-                slot,
-                transaction_signature: account_info
-                    .txn_signature
-                    .and_then(|sig| Signature::try_from(sig).ok()),
-            });
+        let update = AccountUpdate {
+            pubkey: account_pubkey,
+            account,
+            slot,
+            transaction_signature: account_info
+                .txn_signature
+                .and_then(|sig| Signature::try_from(sig).ok()),
+        }
+        .into_update();
+        let is_deletion = matches!(&update, Update::AccountDeletion(_));
 
-            if let Err(e) = sender.try_send((update, id)) {
-                log::error!(
-                    "Failed to send account update for pubkey {account_pubkey:?} at slot {slot}: {e:?}"
-                );
-            }
+        if let Err(e) = sender.try_send((update, id)) {
+            log::error!(
+                "Failed to send account event for pubkey {account_pubkey:?} at slot {slot}: {e:?}"
+            );
         }
 
-        metrics
-            .record_histogram(
-                "laserstream_account_process_time_nanoseconds",
-                start_time.elapsed().as_nanos() as f64,
-            )
-            .await
-            .expect("Failed to record histogram");
-
-        metrics
-            .increment_counter("laserstream_account_updates_received", 1)
-            .await
-            .unwrap_or_else(|value| log::error!("Error recording metric: {value}"));
+        if is_deletion {
+            ACCOUNT_DELETION_PROCESS_TIME_NANOS.record(start_time.elapsed().as_nanos() as f64);
+            ACCOUNT_DELETIONS_RECEIVED.inc();
+        } else {
+            ACCOUNT_PROCESS_TIME_NANOS.record(start_time.elapsed().as_nanos() as f64);
+            ACCOUNT_UPDATES_RECEIVED.inc();
+        }
     } else {
         log::error!("No account info in UpdateOneof::Account at slot {slot}");
     }
@@ -455,7 +484,6 @@ async fn send_subscribe_account_update_info(
 
 async fn send_subscribe_update_transaction_info(
     transaction_info: Option<SubscribeUpdateTransactionInfo>,
-    metrics: &MetricsCollection,
     sender: &Sender<(Update, DatasourceId)>,
     id: DatasourceId,
     slot: u64,
@@ -500,18 +528,8 @@ async fn send_subscribe_update_transaction_info(
             return;
         }
 
-        metrics
-            .record_histogram(
-                "laserstream_transaction_process_time_nanoseconds",
-                start_time.elapsed().as_nanos() as f64,
-            )
-            .await
-            .expect("Failed to record histogram");
-
-        metrics
-            .increment_counter("laserstream_transaction_updates_received", 1)
-            .await
-            .unwrap_or_else(|value| log::error!("Error recording metric: {value}"));
+        TRANSACTION_PROCESS_TIME_NANOS.record(start_time.elapsed().as_nanos() as f64);
+        TRANSACTION_UPDATES_RECEIVED.inc();
     } else {
         log::error!("No transaction info in `UpdateOneof::Transaction` at slot {slot}");
     }

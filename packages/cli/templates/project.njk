@@ -46,8 +46,7 @@ pub async fn main() -> CarbonResult<()> {
 
     let mut pipeline = carbon_core::pipeline::Pipeline::builder()
         .datasource(datasource)
-        .metrics(Arc::new({{ metrics.name }}Metrics::new()))
-        .metrics_flush_interval(5)
+        .metrics(Arc::new({% if metrics.name == "Log" %}{{ metrics.name }}Metrics::new_with_flush_interval(5){% else %}{{ metrics.name }}Metrics::new(){% endif %}))
         {%- if withPostgres %}
         {%- if useGenericPostgres %}
         {%- for decoder in decoders %}
@@ -79,7 +78,7 @@ pub async fn main() -> CarbonResult<()> {
         {%- endif %}
         .shutdown_strategy(carbon_core::pipeline::ShutdownStrategy::Immediate)
         .build()?;
-{% if withGraphQL %}
+{% if withGraphql %}
     tokio::select! {
         res = run_graphql(Arc::new(pool.clone())) => {
             res?;
@@ -94,7 +93,7 @@ pub async fn main() -> CarbonResult<()> {
 
     Ok(())
 }
-{%- if withGraphQL %}
+{%- if withGraphql %}
 
 async fn run_graphql(pool: Arc<sqlx::PgPool>) -> CarbonResult<()> {
     {%- for decoder in decoders %}
@@ -117,26 +116,16 @@ async fn run_graphql(pool: Arc<sqlx::PgPool>) -> CarbonResult<()> {
 {%- for decoder in decoders %} 
 pub struct {{ decoder.name }}InstructionProcessor;
 
-#[async_trait]
-impl Processor for {{ decoder.name }}InstructionProcessor {
-    type InputType = (
-        InstructionMetadata,
-        DecodedInstruction<{{ decoder.name }}Instruction>,
-        NestedInstructions,
-        solana_instruction::Instruction,
-    );
-
+impl Processor<InstructionProcessorInputType<'_, {{ decoder.name }}Instruction>> for {{ decoder.name }}InstructionProcessor {
     async fn process(
         &mut self,
-        (metadata, instruction, _nested_instructions, _raw_instruction): Self::InputType,
-        _metrics: Arc<MetricsCollection>,
+        input: &InstructionProcessorInputType<'_, {{ decoder.name }}Instruction>,
     ) -> CarbonResult<()> {
-        let signature = metadata.transaction_metadata.signature;
-        let accounts = instruction.accounts;
+        let signature = input.metadata.transaction_metadata.signature;
 
-        log::info!("received the {{ decoder.name }} instruction, sig: {}, accounts len: {}", signature, accounts.len());
-        
-        match instruction.data {
+        log::info!("received the {{ decoder.name }} instruction, sig: {}", signature);
+
+        match input.decoded_instruction {
             _ => {}
         };
 

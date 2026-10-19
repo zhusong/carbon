@@ -6,3 +6,38 @@ pub struct BaseFeeStruct {
     pub base_fee_info: BaseFeeInfo,
     pub padding1: u64,
 }
+
+impl BaseFeeStruct {
+    /// The account ABI retains the legacy 32-byte fee payload inside BaseFeeInfo.
+    pub fn cliff_fee_numerator(&self) -> u64 {
+        u64::from_le_bytes(self.base_fee_info.data[..8].try_into().unwrap())
+    }
+
+    pub fn base_fee_mode(&self) -> u8 {
+        self.base_fee_info.data[8]
+    }
+
+    /// Number of periods for time schedulers (modes 0/1), not a generic fee rate.
+    pub fn first_factor(&self) -> u16 {
+        u16::from_le_bytes(self.base_fee_info.data[14..16].try_into().unwrap())
+    }
+}
+
+#[cfg(test)]
+mod compatibility_tests {
+    use super::*;
+
+    #[test]
+    fn legacy_base_fee_account_offsets_are_preserved() {
+        let mut bytes = [0u8; 40];
+        bytes[..8].copy_from_slice(&1_000_000u64.to_le_bytes());
+        bytes[8] = 1;
+        bytes[14..16].copy_from_slice(&42u16.to_le_bytes());
+        bytes[16..24].copy_from_slice(&86400u64.to_le_bytes());
+        let fee: BaseFeeStruct = borsh::from_slice(&bytes).unwrap();
+        assert_eq!(fee.cliff_fee_numerator(), 1_000_000);
+        assert_eq!(fee.base_fee_mode(), 1);
+        assert_eq!(fee.first_factor(), 42);
+        assert_eq!(borsh::to_vec(&fee).unwrap(), bytes);
+    }
+}

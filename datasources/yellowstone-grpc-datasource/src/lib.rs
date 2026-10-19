@@ -2,27 +2,25 @@ use {
     async_trait::async_trait,
     carbon_core::{
         datasource::{
-            AccountDeletion, AccountUpdate, Datasource, DatasourceId, TransactionUpdate, Update,
-            UpdateType,
+            AccountUpdate, Datasource, DatasourceDisconnection, DatasourceId, TransactionUpdate,
+            Update, UpdateType,
         },
         error::CarbonResult,
-        metrics::MetricsCollection,
+        metrics::{Counter, Histogram, MetricsRegistry},
+        transformers::yellowstone::{create_tx_meta, create_tx_versioned},
     },
+    chrono::{DateTime, Utc},
     futures::{sink::SinkExt, StreamExt},
     solana_account::Account,
     solana_pubkey::Pubkey,
     solana_signature::Signature,
-    std::{
-        collections::{HashMap, HashSet},
-        convert::TryFrom,
-        sync::Arc,
-        time::Duration,
-    },
-    tokio::sync::{mpsc::Sender, RwLock},
+    std::{collections::HashMap, convert::TryFrom, sync::LazyLock, time::Duration},
+    tokio::sync::{mpsc, mpsc::Sender},
     tokio_util::sync::CancellationToken,
-    yellowstone_grpc_client::{GeyserGrpcBuilder, GeyserGrpcBuilderResult, GeyserGrpcClient},
+    yellowstone_grpc_client::{
+        GeyserGrpcBuilder, GeyserGrpcBuilderResult, GeyserGrpcClient, ReconnectConfig,
+    },
     yellowstone_grpc_proto::{
-        convert_from::{create_tx_meta, create_tx_versioned},
         geyser::{
             subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
             SubscribeRequestFilterAccounts, SubscribeRequestFilterBlocks,
@@ -33,6 +31,83 @@ use {
     },
 };
 
+static ACCOUNT_PROCESS_TIME_NANOS: LazyLock<Histogram> = LazyLock::new(|| {
+    Histogram::new(
+        "yellowstone_grpc_account_process_time_nanoseconds",
+        "Time taken to process account updates in nanoseconds",
+        vec![
+            1_000.0,
+            10_000.0,
+            100_000.0,
+            1_000_000.0,
+            10_000_000.0,
+            100_000_000.0,
+            1_000_000_000.0,
+        ],
+    )
+});
+static ACCOUNT_UPDATES_RECEIVED: Counter = Counter::new(
+    "yellowstone_grpc_account_updates_received_total",
+    "Total account updates received from Yellowstone gRPC",
+);
+static ACCOUNT_DELETION_PROCESS_TIME_NANOS: LazyLock<Histogram> = LazyLock::new(|| {
+    Histogram::new(
+        "yellowstone_grpc_account_deletion_process_time_nanoseconds",
+        "Time taken to process account deletions in nanoseconds",
+        vec![
+            1_000.0,
+            10_000.0,
+            100_000.0,
+            1_000_000.0,
+            10_000_000.0,
+            100_000_000.0,
+            1_000_000_000.0,
+        ],
+    )
+});
+static ACCOUNT_DELETIONS_RECEIVED: Counter = Counter::new(
+    "yellowstone_grpc_account_deletions_received_total",
+    "Total account deletions received from Yellowstone gRPC",
+);
+static TRANSACTION_PROCESS_TIME_NANOS: LazyLock<Histogram> = LazyLock::new(|| {
+    Histogram::new(
+        "yellowstone_grpc_transaction_process_time_nanoseconds",
+        "Time taken to process transaction updates in nanoseconds",
+        vec![
+            1_000.0,
+            10_000.0,
+            100_000.0,
+            1_000_000.0,
+            10_000_000.0,
+            100_000_000.0,
+            1_000_000_000.0,
+        ],
+    )
+});
+static TRANSACTION_UPDATES_RECEIVED: Counter = Counter::new(
+    "yellowstone_grpc_transaction_updates_received_total",
+    "Total transaction updates received from Yellowstone gRPC",
+);
+
+fn register_yellowstone_metrics() {
+    let registry = MetricsRegistry::global();
+    registry.register_counter(&ACCOUNT_UPDATES_RECEIVED);
+    registry.register_counter(&ACCOUNT_DELETIONS_RECEIVED);
+    registry.register_counter(&TRANSACTION_UPDATES_RECEIVED);
+    registry.register_histogram(&ACCOUNT_PROCESS_TIME_NANOS);
+    registry.register_histogram(&ACCOUNT_DELETION_PROCESS_TIME_NANOS);
+    registry.register_histogram(&TRANSACTION_PROCESS_TIME_NANOS);
+}
+
+/// Default timeout for detecting stale connections (30 seconds)
+pub const DEFAULT_STREAM_TIMEOUT_SECS: u64 = 30;
+
+/// Initial delay before retrying a failed subscription attempt
+const RECONNECT_INITIAL_DELAY_MS: u64 = 100;
+
+/// Upper bound on the retry delay
+const RECONNECT_MAX_DELAY_MS: u64 = 3_000;
+
 #[derive(Debug)]
 pub struct YellowstoneGrpcGeyserClient {
     pub endpoint: String,
@@ -41,8 +116,10 @@ pub struct YellowstoneGrpcGeyserClient {
     pub account_filters: HashMap<String, SubscribeRequestFilterAccounts>,
     pub transaction_filters: HashMap<String, SubscribeRequestFilterTransactions>,
     pub block_filters: BlockFilters,
-    pub account_deletions_tracked: Arc<RwLock<HashSet<Pubkey>>>,
     pub geyser_config: YellowstoneGrpcClientConfig,
+    pub disconnect_notifier: Option<mpsc::Sender<DatasourceDisconnection>>,
+    /// Timeout for detecting hung/stale connections. Default: 30 seconds.
+    pub stream_timeout: Duration,
 }
 
 #[derive(Debug, Clone)]
@@ -53,6 +130,9 @@ pub struct YellowstoneGrpcClientConfig {
     pub max_decoding_message_size: Option<usize>,
     pub tls_config: Option<ClientTlsConfig>,
     pub tcp_nodelay: Option<bool>,
+    /// When set, the client reconnects and replays inside the stream instead of
+    /// surfacing the disconnect. Off by default.
+    pub reconnect: Option<ReconnectConfig>,
 }
 
 impl Default for YellowstoneGrpcClientConfig {
@@ -64,6 +144,7 @@ impl Default for YellowstoneGrpcClientConfig {
             max_decoding_message_size: None,
             tls_config: None,
             tcp_nodelay: None,
+            reconnect: None,
         }
     }
 }
@@ -75,16 +156,19 @@ pub struct BlockFilters {
 }
 
 impl YellowstoneGrpcGeyserClient {
+    /// Creates a new YellowstoneGrpcGeyserClient with optional stream timeout.
+    /// If `stream_timeout` is None, defaults to 30 seconds.
     #[allow(clippy::too_many_arguments)]
-    pub const fn new(
+    pub fn new(
         endpoint: String,
         x_token: Option<String>,
         commitment: Option<CommitmentLevel>,
         account_filters: HashMap<String, SubscribeRequestFilterAccounts>,
         transaction_filters: HashMap<String, SubscribeRequestFilterTransactions>,
         block_filters: BlockFilters,
-        account_deletions_tracked: Arc<RwLock<HashSet<Pubkey>>>,
         geyser_config: YellowstoneGrpcClientConfig,
+        disconnect_notifier: Option<mpsc::Sender<DatasourceDisconnection>>,
+        stream_timeout: Option<Duration>,
     ) -> Self {
         YellowstoneGrpcGeyserClient {
             endpoint,
@@ -93,8 +177,10 @@ impl YellowstoneGrpcGeyserClient {
             account_filters,
             transaction_filters,
             block_filters,
-            account_deletions_tracked,
             geyser_config,
+            disconnect_notifier,
+            stream_timeout: stream_timeout
+                .unwrap_or(Duration::from_secs(DEFAULT_STREAM_TIMEOUT_SECS)),
         }
     }
 }
@@ -115,6 +201,14 @@ impl YellowstoneGrpcClientConfig {
             max_decoding_message_size,
             tls_config,
             tcp_nodelay,
+            reconnect: None,
+        }
+    }
+
+    pub fn with_reconnect(self, reconnect: ReconnectConfig) -> Self {
+        YellowstoneGrpcClientConfig {
+            reconnect: Some(reconnect),
+            ..self
         }
     }
 
@@ -143,6 +237,10 @@ impl YellowstoneGrpcClientConfig {
         if let Some(val) = self.tcp_nodelay {
             builder = builder.tcp_nodelay(val);
         }
+
+        if let Some(reconnect) = self.reconnect.clone() {
+            builder = builder.set_reconnect_config(reconnect);
+        }
         Ok(builder)
     }
 }
@@ -154,14 +252,13 @@ impl Datasource for YellowstoneGrpcGeyserClient {
         id: DatasourceId,
         sender: Sender<(Update, DatasourceId)>,
         cancellation_token: CancellationToken,
-        metrics: Arc<MetricsCollection>,
     ) -> CarbonResult<()> {
+        register_yellowstone_metrics();
         let endpoint = self.endpoint.clone();
         let x_token = self.x_token.clone();
         let commitment = self.commitment;
         let account_filters = self.account_filters.clone();
         let transaction_filters = self.transaction_filters.clone();
-        let account_deletions_tracked = self.account_deletions_tracked.clone();
         let BlockFilters {
             filters,
             failed_transactions: block_failed_transactions,
@@ -181,6 +278,9 @@ impl Datasource for YellowstoneGrpcGeyserClient {
             .await
             .map_err(|err| carbon_core::error::Error::FailedToConsumeDatasource(err.to_string()))?;
 
+        let disconnect_tx_clone = self.disconnect_notifier.clone();
+        let stream_timeout = self.stream_timeout;
+
         tokio::spawn(async move {
             let subscribe_request = SubscribeRequest {
                 slots: HashMap::new(),
@@ -198,6 +298,11 @@ impl Datasource for YellowstoneGrpcGeyserClient {
 
             let id_for_loop = id.clone();
 
+            let mut last_disconnect_time: Option<DateTime<Utc>> = None;
+            let mut last_slot_before_disconnect: Option<u64> = None;
+            let mut last_processed_slot: u64 = 0;
+            let mut reconnect_delay = Duration::from_millis(RECONNECT_INITIAL_DELAY_MS);
+
             loop {
                 tokio::select! {
                     _ = cancellation_token.cancelled() => {
@@ -207,55 +312,126 @@ impl Datasource for YellowstoneGrpcGeyserClient {
                     result = geyser_client.subscribe_with_request(Some(subscribe_request.clone())) => {
                         match result {
                             Ok((mut subscribe_tx, mut stream)) => {
-                                while let Some(message) = stream.next().await {
+                                reconnect_delay = Duration::from_millis(RECONNECT_INITIAL_DELAY_MS);
+                                let mut first_message_after_reconnect = last_disconnect_time.is_some();
+
+                                loop {
                                     if cancellation_token.is_cancelled() {
                                         break;
                                     }
 
+                                    let message_result = tokio::time::timeout(
+                                        stream_timeout,
+                                        stream.next()
+                                    ).await;
+
+                                    let message = match message_result {
+                                        Ok(Some(msg)) => msg,
+                                        Ok(None) => {
+                                            log::warn!("Stream closed");
+                                            if last_disconnect_time.is_none() {
+                                                last_disconnect_time = Some(Utc::now());
+                                                last_slot_before_disconnect = Some(last_processed_slot);
+                                                log::warn!("Disconnected at slot {last_processed_slot}");
+                                            }
+                                            break;
+                                        }
+                                        Err(_) => {
+                                            log::warn!("Stream timeout - no messages for {stream_timeout:?}");
+                                            if last_disconnect_time.is_none() {
+                                                last_disconnect_time = Some(Utc::now());
+                                                last_slot_before_disconnect = Some(last_processed_slot);
+                                                log::warn!("Disconnected at slot {last_processed_slot} (timeout)");
+                                            }
+                                            break;
+                                        }
+                                    };
+
                                     match message {
-                                        Ok(msg) => match msg.update_oneof {
+                                        Ok(msg) => {
+                                            if first_message_after_reconnect {
+                                                let current_slot = match &msg.update_oneof {
+                                                    Some(UpdateOneof::Account(ref update)) => Some(update.slot),
+                                                    Some(UpdateOneof::Transaction(ref update)) => Some(update.slot),
+                                                    Some(UpdateOneof::Block(ref update)) => Some(update.slot),
+                                                    _ => None,
+                                                };
+
+                                                if let Some(slot) = current_slot {
+                                                    first_message_after_reconnect = false;
+
+                                                    if let (Some(disconnect_time), Some(last_slot)) =
+                                                        (last_disconnect_time.take(), last_slot_before_disconnect.take())
+                                                    {
+                                                        let missed = slot.saturating_sub(last_slot);
+
+                                                        let disconnection = DatasourceDisconnection {
+                                                            source: "yellowstone-grpc".to_string(),
+                                                            disconnect_time,
+                                                            last_slot_before_disconnect: last_slot,
+                                                            first_slot_after_reconnect: slot,
+                                                            missed_slots: missed,
+                                                        };
+
+                                                        if let Some(tx) = &disconnect_tx_clone {
+                                                            let _ = tx.try_send(disconnection);
+                                                        }
+
+                                                        log::info!("Reconnected. Slots: {last_slot} -> {slot} (missed: {missed})");
+                                                    }
+                                                }
+                                            }
+
+                                            match msg.update_oneof {
                                             Some(UpdateOneof::Account(account_update)) => {
+                                                last_processed_slot = account_update.slot;
                                                 send_subscribe_account_update_info(
                                                     account_update.account,
-                                                    &metrics,
                                                     &sender,
                                                     id_for_loop.clone(),
                                                     account_update.slot,
-                                                    &account_deletions_tracked,
                                                 )
                                                 .await
                                             }
 
                                             Some(UpdateOneof::Transaction(transaction_update)) => {
-                                                send_subscribe_update_transaction_info(transaction_update.transaction, &metrics, &sender, id_for_loop.clone(), transaction_update.slot, None).await
+                                                last_processed_slot = transaction_update.slot;
+                                                send_subscribe_update_transaction_info(
+                                                    transaction_update.transaction,
+                                                    &sender,
+                                                    id_for_loop.clone(),
+                                                    transaction_update.slot,
+                                                    None,
+                                                )
+                                                .await
                                             }
                                             Some(UpdateOneof::Block(block_update)) => {
+                                                last_processed_slot = block_update.slot;
                                                 let block_time = block_update.block_time.map(|ts| ts.timestamp);
 
                                                 for transaction_update in block_update.transactions {
                                                     if retain_block_failed_transactions || transaction_update.meta.as_ref().map(|meta| meta.err.is_none()).unwrap_or(false) {
-                                                        send_subscribe_update_transaction_info(Some(transaction_update), &metrics, &sender, id_for_loop.clone(), block_update.slot, block_time).await
+                                                        send_subscribe_update_transaction_info(Some(transaction_update), &sender, id_for_loop.clone(), block_update.slot, block_time).await
                                                     }
                                                 }
 
                                                 for account_info in block_update.accounts {
                                                     send_subscribe_account_update_info(
                                                         Some(account_info),
-                                                        &metrics,
                                                         &sender,
                                                         id_for_loop.clone(),
                                                         block_update.slot,
-                                                        &account_deletions_tracked,
                                                     )
                                                     .await;
                                                 }
                                             }
 
                                             Some(UpdateOneof::Ping(_)) => {
+                                                // Sink replays the last request on reconnect.
                                                 match subscribe_tx
                                                     .send(SubscribeRequest {
                                                         ping: Some(SubscribeRequestPing { id: 1 }),
-                                                        ..Default::default()
+                                                        ..subscribe_request.clone()
                                                     })
                                                     .await {
                                                         Ok(()) => (),
@@ -267,9 +443,17 @@ impl Datasource for YellowstoneGrpcGeyserClient {
                                             }
 
                                             _ => {}
-                                        },
+                                        }
+                                        }
                                         Err(error) => {
                                             log::error!("Geyser stream error: {error:?}");
+
+                                            if last_disconnect_time.is_none() {
+                                                last_disconnect_time = Some(Utc::now());
+                                                last_slot_before_disconnect = Some(last_processed_slot);
+                                                log::error!("Disconnected at slot {last_processed_slot}");
+                                            }
+
                                             break;
                                         }
                                     }
@@ -277,6 +461,22 @@ impl Datasource for YellowstoneGrpcGeyserClient {
                             }
                             Err(e) => {
                                 log::error!("Failed to subscribe: {e:?}");
+
+                                if last_disconnect_time.is_none() {
+                                    last_disconnect_time = Some(Utc::now());
+                                    last_slot_before_disconnect = Some(last_processed_slot);
+                                }
+
+                                tokio::select! {
+                                    _ = cancellation_token.cancelled() => {
+                                        log::info!("Cancelling Yellowstone gRPC subscription.");
+                                        break;
+                                    }
+                                    _ = tokio::time::sleep(reconnect_delay) => {}
+                                }
+
+                                reconnect_delay = (reconnect_delay * 2)
+                                    .min(Duration::from_millis(RECONNECT_MAX_DELAY_MS));
                             }
                         }
                     }
@@ -298,11 +498,9 @@ impl Datasource for YellowstoneGrpcGeyserClient {
 
 async fn send_subscribe_account_update_info(
     account_update_info: Option<SubscribeUpdateAccountInfo>,
-    metrics: &MetricsCollection,
     sender: &Sender<(Update, DatasourceId)>,
     id: DatasourceId,
     slot: u64,
-    account_deletions_tracked: &RwLock<HashSet<Pubkey>>,
 ) {
     let start_time = std::time::Instant::now();
 
@@ -323,54 +521,30 @@ async fn send_subscribe_account_update_info(
             rent_epoch: account_info.rent_epoch,
         };
 
-        if account.lamports == 0
-            && account.data.is_empty()
-            && account_owner_pubkey == solana_system_interface::program::ID
-        {
-            let accounts = account_deletions_tracked.read().await;
-            if accounts.contains(&account_pubkey) {
-                let account_deletion = AccountDeletion {
-                    pubkey: account_pubkey,
-                    slot,
-                    transaction_signature: account_info
-                        .txn_signature
-                        .and_then(|sig| Signature::try_from(sig).ok()),
-                };
-                if let Err(e) = sender.try_send((Update::AccountDeletion(account_deletion), id)) {
-                    log::error!(
-                        "Failed to send account deletion update for pubkey {account_pubkey:?} at slot {slot}: {e:?}"
-                    );
-                }
-            }
-        } else {
-            let update = Update::Account(AccountUpdate {
-                pubkey: account_pubkey,
-                account,
-                slot,
-                transaction_signature: account_info
-                    .txn_signature
-                    .and_then(|sig| Signature::try_from(sig).ok()),
-            });
+        let update = AccountUpdate {
+            pubkey: account_pubkey,
+            account,
+            slot,
+            transaction_signature: account_info
+                .txn_signature
+                .and_then(|sig| Signature::try_from(sig).ok()),
+        }
+        .into_update();
+        let is_deletion = matches!(&update, Update::AccountDeletion(_));
 
-            if let Err(e) = sender.try_send((update, id)) {
-                log::error!(
-                    "Failed to send account update for pubkey {account_pubkey:?} at slot {slot}: {e:?}"
-                );
-            }
+        if let Err(e) = sender.try_send((update, id)) {
+            log::error!(
+                "Failed to send account event for pubkey {account_pubkey:?} at slot {slot}: {e:?}"
+            );
         }
 
-        metrics
-            .record_histogram(
-                "yellowstone_grpc_account_process_time_nanoseconds",
-                start_time.elapsed().as_nanos() as f64,
-            )
-            .await
-            .expect("Failed to record histogram");
-
-        metrics
-            .increment_counter("yellowstone_grpc_account_updates_received", 1)
-            .await
-            .unwrap_or_else(|value| log::error!("Error recording metric: {value}"));
+        if is_deletion {
+            ACCOUNT_DELETION_PROCESS_TIME_NANOS.record(start_time.elapsed().as_nanos() as f64);
+            ACCOUNT_DELETIONS_RECEIVED.inc();
+        } else {
+            ACCOUNT_PROCESS_TIME_NANOS.record(start_time.elapsed().as_nanos() as f64);
+            ACCOUNT_UPDATES_RECEIVED.inc();
+        }
     } else {
         log::error!("No account info in UpdateOneof::Account at slot {slot}");
     }
@@ -378,7 +552,6 @@ async fn send_subscribe_account_update_info(
 
 async fn send_subscribe_update_transaction_info(
     transaction_info: Option<SubscribeUpdateTransactionInfo>,
-    metrics: &MetricsCollection,
     sender: &Sender<(Update, DatasourceId)>,
     id: DatasourceId,
     slot: u64,
@@ -423,18 +596,8 @@ async fn send_subscribe_update_transaction_info(
             return;
         }
 
-        metrics
-            .record_histogram(
-                "yellowstone_grpc_transaction_process_time_nanoseconds",
-                start_time.elapsed().as_nanos() as f64,
-            )
-            .await
-            .expect("Failed to record histogram");
-
-        metrics
-            .increment_counter("yellowstone_grpc_transaction_updates_received", 1)
-            .await
-            .unwrap_or_else(|value| log::error!("Error recording metric: {value}"));
+        TRANSACTION_PROCESS_TIME_NANOS.record(start_time.elapsed().as_nanos() as f64);
+        TRANSACTION_UPDATES_RECEIVED.inc();
     } else {
         log::error!("No transaction info in `UpdateOneof::Transaction` at slot {slot}");
     }

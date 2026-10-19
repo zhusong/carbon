@@ -28,6 +28,11 @@ pub struct GlobalGraphQL {
     pub reserved_fee_recipient: Pubkey,
     pub mayhem_mode_enabled: bool,
     pub reserved_fee_recipients: Vec<Pubkey>,
+    pub is_cashback_enabled: bool,
+    pub buyback_fee_recipients: Vec<Pubkey>,
+    pub buyback_basis_points: U64,
+    pub initial_virtual_quote_reserves: U64,
+    pub whitelisted_quote_mints: Vec<Pubkey>,
 }
 
 impl TryFrom<crate::accounts::postgres::GlobalRow> for GlobalGraphQL {
@@ -74,6 +79,21 @@ impl TryFrom<crate::accounts::postgres::GlobalRow> for GlobalGraphQL {
             mayhem_mode_enabled: row.mayhem_mode_enabled,
             reserved_fee_recipients: row
                 .reserved_fee_recipients
+                .into_iter()
+                .map(|item| carbon_core::graphql::primitives::Pubkey(item.0))
+                .collect(),
+            is_cashback_enabled: row.is_cashback_enabled,
+            buyback_fee_recipients: row
+                .buyback_fee_recipients
+                .into_iter()
+                .map(|item| carbon_core::graphql::primitives::Pubkey(item.0))
+                .collect(),
+            buyback_basis_points: carbon_core::graphql::primitives::U64(*row.buyback_basis_points),
+            initial_virtual_quote_reserves: carbon_core::graphql::primitives::U64(
+                *row.initial_virtual_quote_reserves,
+            ),
+            whitelisted_quote_mints: row
+                .whitelisted_quote_mints
                 .into_iter()
                 .map(|item| carbon_core::graphql::primitives::Pubkey(item.0))
                 .collect(),

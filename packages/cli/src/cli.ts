@@ -2,8 +2,9 @@ import { Command } from 'commander';
 import { resolve, join } from 'path';
 import { promptForParse, promptForScaffold } from './lib/prompts';
 import { generateDecoder, parseIdlSource, getIdlMetadata } from './lib/decoder';
+import type { PackageMetadata } from '@sevenlabs-hq/carbon-codama-renderer';
 import { validateDataSource, validateMetrics } from './lib/validation';
-import { resolveRpcUrl, runCargoFmt } from './lib/utils';
+import { parseBoolOpt, resolveRpcUrl, runCargoFmt } from './lib/utils';
 import { logger, showBanner } from './lib/logger';
 
 const program = new Command();
@@ -51,9 +52,17 @@ program
     .description('Parse an IDL and generate a decoder')
     .option('-i, --idl <fileOrAddress>', 'Path to an IDL json file or a Solana program address')
     .option('-o, --out-dir <dir>', 'Output directory for generated code')
+    .option(
+        '-n, --name <string>',
+        'Decoder name (e.g. pumpfun). Used for crate name carbon-<name>-decoder and struct <Name>Decoder. Default: from IDL',
+    )
     .option('-c, --as-crate', 'Generate as a Cargo crate layout', false)
     .option('-s, --standard <anchor|codama>', 'Specify the IDL standard to parse', 'anchor')
     .option('--event-hints <csv>', 'Comma-separated names of defined types to parse as CPI Events (Codama only)')
+    .option(
+        '--event-cpi-discriminator <hex>',
+        'Event-CPI envelope for hidden-prefix Codama events as hex bytes (default: the Anchor event tag e445a52e51cb9a1d)',
+    )
     .option('-u, --url <rpcUrl>', 'RPC URL for fetching IDL when using a program address')
     .option('--program-id <address>', 'Program ID (used if IDL lacks address field)')
     .option('--postgres-mode <generic|typed>', 'Postgres table storage mode', 'typed')
@@ -61,7 +70,17 @@ program
     .option('--with-graphql <boolean>', 'Include GraphQL wiring and deps (default: true)')
     .option('--with-serde <boolean>', 'Include serde feature for decoder (default: false)')
     .option('--with-base58 <boolean>', 'Include base58 feature for decoder (default: false)')
-    .option('--no-clean', 'Do not delete output directory before rendering', false)
+    .option(
+        '--standalone <boolean>',
+        'Generate standalone decoder with [workspace] section (default: true). Set to false for workspace dependencies',
+        'true',
+    )
+    .option('--description <string>', 'Package description (default: derived from decoder name)')
+    .option('--keywords <csv>', 'Package keywords, comma-separated (default: solana, decoder, plus name parts)')
+    .option('--categories <csv>', 'Package categories, comma-separated (default: encoding)')
+    .option('--package-version <string>', 'Package version in Cargo.toml (default: 0.1.0)')
+    .option('--version-name <name>', 'Decoder version name (e.g., "v1", "v2")')
+    .option('--no-clean', 'Do not delete output directory before rendering')
     .action(async opts => {
         showBanner();
 
@@ -72,15 +91,39 @@ program
         }
 
         // Normalize boolean options
-        const withPostgres =
-            opts.withPostgres !== undefined ? opts.withPostgres === 'true' || opts.withPostgres === true : true;
-        const withGraphql =
-            opts.withGraphql !== undefined ? opts.withGraphql === 'true' || opts.withGraphql === true : true;
-        const withSerdeDefault = !withPostgres && !withGraphql ? true : false;
-        const withSerde =
-            opts.withSerde !== undefined ? opts.withSerde === 'true' || opts.withSerde === true : withSerdeDefault;
-        const withBase58 =
-            opts.withBase58 !== undefined ? opts.withBase58 === 'true' || opts.withBase58 === true : false;
+        const withPostgres = parseBoolOpt(opts.withPostgres, true);
+        const withGraphql = parseBoolOpt(opts.withGraphql, true);
+        const withSerdeDefault = !withPostgres && !withGraphql;
+        const withSerde = parseBoolOpt(opts.withSerde, withSerdeDefault);
+        const withBase58 = parseBoolOpt(opts.withBase58, false);
+        const standalone = parseBoolOpt(opts.standalone, true);
+        const desc = opts.description != null ? String(opts.description).trim() || undefined : undefined;
+        const kws =
+            opts.keywords != null
+                ? String(opts.keywords)
+                      .split(',')
+                      .map(k => k.trim())
+                      .filter(Boolean)
+                : [];
+        const cats =
+            opts.categories != null
+                ? String(opts.categories)
+                      .split(',')
+                      .map(c => c.trim())
+                      .filter(Boolean)
+                : [];
+        const packageMetadata: PackageMetadata | undefined =
+            desc || kws.length > 0 || cats.length > 0
+                ? {
+                      ...(desc && { description: desc }),
+                      ...(kws.length > 0 && { keywords: kws }),
+                      ...(cats.length > 0 && { categories: cats }),
+                  }
+                : undefined;
+        const packageName =
+            opts.name != null && String(opts.name).trim() !== ''
+                ? String(opts.name).trim().replace(/\s+/g, '-')
+                : undefined;
 
         const outDir = resolve(process.cwd(), opts.outDir);
 
@@ -94,14 +137,19 @@ program
                 standard: opts.standard,
                 url: opts.url,
                 eventHints: opts.eventHints,
+                eventCpiDiscriminator: opts.eventCpiDiscriminator,
                 deleteFolderBeforeRendering: Boolean(opts.clean),
                 programId: opts.programId,
+                packageName,
                 postgresMode: opts.postgresMode,
                 withPostgres,
                 withGraphql,
                 withSerde,
                 withBase58,
-                standalone: true,
+                standalone,
+                packageMetadata,
+                version: opts.packageVersion,
+                versionName: opts.versionName,
             });
 
             logger.succeedSpinner('Decoder generated');
@@ -139,6 +187,10 @@ program
     .option('--idl-standard <anchor|codama>', 'IDL standard')
     .option('--idl-url <rpcUrl>', 'RPC URL for fetching IDL (when using program address)')
     .option('--event-hints <csv>', 'Event hints for Codama IDL')
+    .option(
+        '--event-cpi-discriminator <hex>',
+        'Event-CPI envelope for hidden-prefix Codama events as hex bytes (default: the Anchor event tag e445a52e51cb9a1d)',
+    )
     .option('--program-id <address>', 'Program ID (used if IDL lacks address field)')
     .option('-s, --data-source <name>', 'Name of data source')
     .option('-m, --metrics <log|prometheus>', 'Metrics to use', 'log')
@@ -146,6 +198,8 @@ program
     .option('--with-graphql <boolean>', 'Include GraphQL wiring and deps (default: true)')
     .option('--with-serde <boolean>', 'Include serde feature for decoder (default: false)')
     .option('--with-base58 <boolean>', 'Include base58 feature for decoder (default: false)')
+    .option('--package-version <string>', 'Package version in Cargo.toml (default: 0.1.0)')
+    .option('--version-name <name>', 'Decoder version name (e.g., "v1", "v2")')
     .option('--postgres-mode <generic|typed>', 'Postgres table storage mode', 'typed')
     .option('--force', 'Overwrite output directory if it exists', false)
     .action(async opts => {
@@ -165,17 +219,13 @@ program
         const outDir = resolve(process.cwd(), String(opts.outDir));
         const dataSource = String(opts.dataSource);
         const metrics = String(opts.metrics || 'log').toLowerCase();
-        const withPostgres =
-            opts.withPostgres !== undefined ? opts.withPostgres === 'true' || opts.withPostgres === true : true;
-        const withGraphql =
-            opts.withGraphql !== undefined ? opts.withGraphql === 'true' || opts.withGraphql === true : true;
+        const withPostgres = parseBoolOpt(opts.withPostgres, true);
+        const withGraphql = parseBoolOpt(opts.withGraphql, true);
         // Default serde to true if both postgres and graphql are disabled (since generated code always includes serde attributes)
         // Otherwise, serde will be auto-enabled by postgres/graphql, so default to false
-        const withSerdeDefault = !withPostgres && !withGraphql ? true : false;
-        const withSerde =
-            opts.withSerde !== undefined ? opts.withSerde === 'true' || opts.withSerde === true : withSerdeDefault;
-        const withBase58 =
-            opts.withBase58 !== undefined ? opts.withBase58 === 'true' || opts.withBase58 === true : false;
+        const withSerdeDefault = !withPostgres && !withGraphql;
+        const withSerde = parseBoolOpt(opts.withSerde, withSerdeDefault);
+        const withBase58 = parseBoolOpt(opts.withBase58, false);
         const force = Boolean(opts.force);
 
         // Use provided decoder name or auto-detect from IDL
@@ -237,6 +287,7 @@ program
                 standard: opts.idlStandard,
                 url: opts.idlUrl,
                 eventHints: opts.eventHints,
+                eventCpiDiscriminator: opts.eventCpiDiscriminator,
                 deleteFolderBeforeRendering: true,
                 programId: opts.programId,
                 packageName: decoder,
@@ -246,6 +297,9 @@ program
                 withSerde,
                 withBase58,
                 standalone: false,
+                workspaceDeps: false,
+                version: opts.packageVersion,
+                versionName: opts.versionName,
             });
 
             logger.succeedSpinner('Decoder generated successfully');

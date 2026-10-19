@@ -2,19 +2,20 @@
 name = "carbon-helius-gtfa-datasource"
 description = "Helius GTFA Datasource - Fetches transactions for an address using Helius getTransactionsForAddress with advanced filtering, sorting, and pagination"
 license = { workspace = true }
-version = "0.12.0"
+version = "2.0.0"
+rust-version = { workspace = true }
 edition = { workspace = true }
 readme = "README.md"
 repository = { workspace = true }
-keywords = ["solana", "indexer", "helius", "datasource", "gtfa", "transactions"]
+keywords = ["solana", "indexer", "helius", "datasource", "gtfa"]
 categories = ["encoding"]
 
 [lib]
 crate-type = ["rlib"]
 
 [dependencies]
-solana-commitment-config = { workspace = true }
 solana-client = { workspace = true }
+solana-commitment-config = { workspace = true }
 solana-pubkey = { workspace = true }
 solana-transaction-status = { workspace = true }
 

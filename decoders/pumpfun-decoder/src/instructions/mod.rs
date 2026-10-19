@@ -7,360 +7,657 @@ pub mod postgres;
 #[cfg(feature = "graphql")]
 pub mod graphql;
 
+pub mod add_quote_mint;
 pub mod admin_set_creator;
 pub mod admin_set_idl_authority;
 pub mod admin_update_token_incentives;
 pub mod buy;
+pub mod buy_exact_quote_in_v2;
 pub mod buy_exact_sol_in;
+pub mod buy_v2;
+pub mod claim_cashback;
+pub mod claim_cashback_v2;
 pub mod claim_token_incentives;
 pub mod close_user_volume_accumulator;
 pub mod collect_creator_fee;
 pub mod cpi_event;
 pub mod create;
 pub mod create_v2;
+pub mod distribute_creator_fees;
 pub mod extend_account;
+pub mod get_minimum_distributable_fee;
 pub mod init_user_volume_accumulator;
 pub mod initialize;
 pub mod migrate;
+pub mod migrate_bonding_curve_creator;
+pub mod migrate_v2;
+pub mod remove_quote_mint;
 pub mod sell;
+pub mod sell_v2;
 pub mod set_creator;
 pub mod set_mayhem_virtual_params;
 pub mod set_metaplex_creator;
 pub mod set_params;
 pub mod set_reserved_fee_recipients;
+pub mod set_virtual_quote_reserves;
 pub mod sync_user_volume_accumulator;
+pub mod toggle_cashback_enabled;
 pub mod toggle_create_v2;
 pub mod toggle_mayhem_mode;
+pub mod update_buyback_config;
 pub mod update_global_authority;
 
 pub use self::{
-    admin_set_creator::*, admin_set_idl_authority::*, admin_update_token_incentives::*, buy::*,
-    buy_exact_sol_in::*, claim_token_incentives::*, close_user_volume_accumulator::*,
-    collect_creator_fee::*, cpi_event::*, create::*, create_v2::*, extend_account::*,
-    init_user_volume_accumulator::*, initialize::*, migrate::*, sell::*, set_creator::*,
+    add_quote_mint::*, admin_set_creator::*, admin_set_idl_authority::*,
+    admin_update_token_incentives::*, buy::*, buy_exact_quote_in_v2::*, buy_exact_sol_in::*,
+    buy_v2::*, claim_cashback::*, claim_cashback_v2::*, claim_token_incentives::*,
+    close_user_volume_accumulator::*, collect_creator_fee::*, cpi_event::*, create::*,
+    create_v2::*, distribute_creator_fees::*, extend_account::*, get_minimum_distributable_fee::*,
+    init_user_volume_accumulator::*, initialize::*, migrate::*, migrate_bonding_curve_creator::*,
+    migrate_v2::*, remove_quote_mint::*, sell::*, sell_v2::*, set_creator::*,
     set_mayhem_virtual_params::*, set_metaplex_creator::*, set_params::*,
-    set_reserved_fee_recipients::*, sync_user_volume_accumulator::*, toggle_create_v2::*,
-    toggle_mayhem_mode::*, update_global_authority::*,
+    set_reserved_fee_recipients::*, set_virtual_quote_reserves::*, sync_user_volume_accumulator::*,
+    toggle_cashback_enabled::*, toggle_create_v2::*, toggle_mayhem_mode::*,
+    update_buyback_config::*, update_global_authority::*,
 };
 
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", content = "data"))]
 pub enum PumpfunInstruction {
-    AdminSetCreator(AdminSetCreator),
-    AdminSetIdlAuthority(AdminSetIdlAuthority),
-    AdminUpdateTokenIncentives(AdminUpdateTokenIncentives),
-    Buy(Buy),
-    BuyExactSolIn(BuyExactSolIn),
-    ClaimTokenIncentives(ClaimTokenIncentives),
-    CloseUserVolumeAccumulator(CloseUserVolumeAccumulator),
-    CollectCreatorFee(CollectCreatorFee),
-    Create(Create),
-    CreateV2(CreateV2),
-    ExtendAccount(ExtendAccount),
-    Initialize(Initialize),
-    InitUserVolumeAccumulator(InitUserVolumeAccumulator),
-    Migrate(Migrate),
-    Sell(Sell),
-    SetCreator(SetCreator),
-    SetMayhemVirtualParams(SetMayhemVirtualParams),
-    SetMetaplexCreator(SetMetaplexCreator),
-    SetParams(SetParams),
-    SetReservedFeeRecipients(SetReservedFeeRecipients),
-    SyncUserVolumeAccumulator(SyncUserVolumeAccumulator),
-    ToggleCreateV2(ToggleCreateV2),
-    ToggleMayhemMode(ToggleMayhemMode),
-    UpdateGlobalAuthority(UpdateGlobalAuthority),
-    // Anchor CPI Event Instruction
-    CpiEvent(Box<CpiEvent>),
+    AddQuoteMint {
+        program_id: solana_pubkey::Pubkey,
+        data: AddQuoteMint,
+        accounts: AddQuoteMintInstructionAccounts,
+    },
+    AdminSetCreator {
+        program_id: solana_pubkey::Pubkey,
+        data: AdminSetCreator,
+        accounts: AdminSetCreatorInstructionAccounts,
+    },
+    AdminSetIdlAuthority {
+        program_id: solana_pubkey::Pubkey,
+        data: AdminSetIdlAuthority,
+        accounts: AdminSetIdlAuthorityInstructionAccounts,
+    },
+    AdminUpdateTokenIncentives {
+        program_id: solana_pubkey::Pubkey,
+        data: AdminUpdateTokenIncentives,
+        accounts: AdminUpdateTokenIncentivesInstructionAccounts,
+    },
+    Buy {
+        program_id: solana_pubkey::Pubkey,
+        data: Buy,
+        accounts: BuyInstructionAccounts,
+    },
+    BuyExactQuoteInV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: BuyExactQuoteInV2,
+        accounts: BuyExactQuoteInV2InstructionAccounts,
+    },
+    BuyExactSolIn {
+        program_id: solana_pubkey::Pubkey,
+        data: BuyExactSolIn,
+        accounts: BuyExactSolInInstructionAccounts,
+    },
+    BuyV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: BuyV2,
+        accounts: BuyV2InstructionAccounts,
+    },
+    ClaimCashback {
+        program_id: solana_pubkey::Pubkey,
+        data: ClaimCashback,
+        accounts: ClaimCashbackInstructionAccounts,
+    },
+    ClaimCashbackV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: ClaimCashbackV2,
+        accounts: ClaimCashbackV2InstructionAccounts,
+    },
+    ClaimTokenIncentives {
+        program_id: solana_pubkey::Pubkey,
+        data: ClaimTokenIncentives,
+        accounts: ClaimTokenIncentivesInstructionAccounts,
+    },
+    CloseUserVolumeAccumulator {
+        program_id: solana_pubkey::Pubkey,
+        data: CloseUserVolumeAccumulator,
+        accounts: CloseUserVolumeAccumulatorInstructionAccounts,
+    },
+    CollectCreatorFee {
+        program_id: solana_pubkey::Pubkey,
+        data: CollectCreatorFee,
+        accounts: CollectCreatorFeeInstructionAccounts,
+    },
+    Create {
+        program_id: solana_pubkey::Pubkey,
+        data: Create,
+        accounts: CreateInstructionAccounts,
+    },
+    CreateV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: CreateV2,
+        accounts: CreateV2InstructionAccounts,
+    },
+    DistributeCreatorFees {
+        program_id: solana_pubkey::Pubkey,
+        data: DistributeCreatorFees,
+        accounts: DistributeCreatorFeesInstructionAccounts,
+    },
+    ExtendAccount {
+        program_id: solana_pubkey::Pubkey,
+        data: ExtendAccount,
+        accounts: ExtendAccountInstructionAccounts,
+    },
+    GetMinimumDistributableFee {
+        program_id: solana_pubkey::Pubkey,
+        data: GetMinimumDistributableFee,
+        accounts: GetMinimumDistributableFeeInstructionAccounts,
+    },
+    Initialize {
+        program_id: solana_pubkey::Pubkey,
+        data: Initialize,
+        accounts: InitializeInstructionAccounts,
+    },
+    InitUserVolumeAccumulator {
+        program_id: solana_pubkey::Pubkey,
+        data: InitUserVolumeAccumulator,
+        accounts: InitUserVolumeAccumulatorInstructionAccounts,
+    },
+    Migrate {
+        program_id: solana_pubkey::Pubkey,
+        data: Migrate,
+        accounts: MigrateInstructionAccounts,
+    },
+    MigrateBondingCurveCreator {
+        program_id: solana_pubkey::Pubkey,
+        data: MigrateBondingCurveCreator,
+        accounts: MigrateBondingCurveCreatorInstructionAccounts,
+    },
+    MigrateV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: MigrateV2,
+        accounts: MigrateV2InstructionAccounts,
+    },
+    RemoveQuoteMint {
+        program_id: solana_pubkey::Pubkey,
+        data: RemoveQuoteMint,
+        accounts: RemoveQuoteMintInstructionAccounts,
+    },
+    Sell {
+        program_id: solana_pubkey::Pubkey,
+        data: Sell,
+        accounts: SellInstructionAccounts,
+    },
+    SellV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: SellV2,
+        accounts: SellV2InstructionAccounts,
+    },
+    SetCreator {
+        program_id: solana_pubkey::Pubkey,
+        data: SetCreator,
+        accounts: SetCreatorInstructionAccounts,
+    },
+    SetMayhemVirtualParams {
+        program_id: solana_pubkey::Pubkey,
+        data: SetMayhemVirtualParams,
+        accounts: SetMayhemVirtualParamsInstructionAccounts,
+    },
+    SetMetaplexCreator {
+        program_id: solana_pubkey::Pubkey,
+        data: SetMetaplexCreator,
+        accounts: SetMetaplexCreatorInstructionAccounts,
+    },
+    SetParams {
+        program_id: solana_pubkey::Pubkey,
+        data: SetParams,
+        accounts: SetParamsInstructionAccounts,
+    },
+    SetReservedFeeRecipients {
+        program_id: solana_pubkey::Pubkey,
+        data: SetReservedFeeRecipients,
+        accounts: SetReservedFeeRecipientsInstructionAccounts,
+    },
+    SetVirtualQuoteReserves {
+        program_id: solana_pubkey::Pubkey,
+        data: SetVirtualQuoteReserves,
+        accounts: SetVirtualQuoteReservesInstructionAccounts,
+    },
+    SyncUserVolumeAccumulator {
+        program_id: solana_pubkey::Pubkey,
+        data: SyncUserVolumeAccumulator,
+        accounts: SyncUserVolumeAccumulatorInstructionAccounts,
+    },
+    ToggleCashbackEnabled {
+        program_id: solana_pubkey::Pubkey,
+        data: ToggleCashbackEnabled,
+        accounts: ToggleCashbackEnabledInstructionAccounts,
+    },
+    ToggleCreateV2 {
+        program_id: solana_pubkey::Pubkey,
+        data: ToggleCreateV2,
+        accounts: ToggleCreateV2InstructionAccounts,
+    },
+    ToggleMayhemMode {
+        program_id: solana_pubkey::Pubkey,
+        data: ToggleMayhemMode,
+        accounts: ToggleMayhemModeInstructionAccounts,
+    },
+    UpdateBuybackConfig {
+        program_id: solana_pubkey::Pubkey,
+        data: UpdateBuybackConfig,
+        accounts: UpdateBuybackConfigInstructionAccounts,
+    },
+    UpdateGlobalAuthority {
+        program_id: solana_pubkey::Pubkey,
+        data: UpdateGlobalAuthority,
+        accounts: UpdateGlobalAuthorityInstructionAccounts,
+    },
+    CpiEvent {
+        program_id: solana_pubkey::Pubkey,
+        data: CpiEvent,
+        accounts: CpiEventInstructionAccounts,
+    },
 }
 
+// Select one decoder before deserializing. Keep complete mode fast too;
+// reduced mode only removes instructions not consumed by the spot pipeline.
 impl carbon_core::instruction::InstructionDecoder<'_> for PumpfunDecoder {
     type InstructionType = PumpfunInstruction;
 
+    #[inline]
     fn decode_instruction(
         &self,
         instruction: &solana_instruction::Instruction,
-    ) -> Option<carbon_core::instruction::DecodedInstruction<Self::InstructionType>> {
+    ) -> Option<Self::InstructionType> {
         if instruction.program_id != PROGRAM_ID {
             return None;
         }
-
         let data = instruction.data.as_slice();
-
-        #[cfg(feature = "minimal-events")]
-        {
-            if data.len() < 8 {
-                return None;
+        let discriminator: [u8; 8] = data.get(..8)?.try_into().ok()?;
+        match discriminator {
+            #[cfg(not(feature = "minimal-events"))]
+            [111, 121, 21, 56, 40, 24, 94, 209] => {
+                let data = AddQuoteMint::decode(data)?;
+                let accounts = <AddQuoteMint as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::AddQuoteMint {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
             }
-            let disc = <[u8; 8]>::try_from(&data[..8]).ok()?;
-            return match disc {
-                [24, 30, 200, 40, 5, 28, 7, 119] => create::Create::decode(data).map(|decoded| {
-                    carbon_core::instruction::DecodedInstruction {
-                        program_id: instruction.program_id,
-                        data: PumpfunInstruction::Create(decoded),
-                        accounts: instruction.accounts.clone(),
-                    }
-                }),
-                [214, 144, 76, 236, 95, 139, 49, 180] => {
-                    create_v2::CreateV2::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::CreateV2(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [155, 234, 231, 146, 236, 158, 162, 30] => {
-                    migrate::Migrate::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::Migrate(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [228, 69, 165, 46, 81, 203, 154, 29] => {
-                    cpi_event::CpiEvent::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::CpiEvent(Box::new(decoded)),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                _ => None,
-            };
-        }
-
-        #[cfg(not(feature = "minimal-events"))]
-        {
-            if data.len() < 8 {
-                return None;
+            #[cfg(not(feature = "minimal-events"))]
+            [69, 25, 171, 142, 57, 239, 13, 4] => {
+                let data = AdminSetCreator::decode(data)?;
+                let accounts = <AdminSetCreator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::AdminSetCreator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
             }
-            let disc = <[u8; 8]>::try_from(&data[..8]).ok()?;
-            return match disc {
-                [69, 25, 171, 142, 57, 239, 13, 4] => {
-                    admin_set_creator::AdminSetCreator::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::AdminSetCreator(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [8, 217, 96, 231, 144, 104, 192, 5] => {
-                    admin_set_idl_authority::AdminSetIdlAuthority::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::AdminSetIdlAuthority(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [209, 11, 115, 87, 213, 23, 124, 204] => {
-                    admin_update_token_incentives::AdminUpdateTokenIncentives::decode(data).map(
-                        |decoded| carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::AdminUpdateTokenIncentives(decoded),
-                            accounts: instruction.accounts.clone(),
-                        },
-                    )
-                }
-                [102, 6, 61, 18, 1, 218, 235, 234] => buy::Buy::decode(data).map(|decoded| {
-                    carbon_core::instruction::DecodedInstruction {
-                        program_id: instruction.program_id,
-                        data: PumpfunInstruction::Buy(decoded),
-                        accounts: instruction.accounts.clone(),
-                    }
-                }),
-                [56, 252, 116, 8, 158, 223, 205, 95] => {
-                    buy_exact_sol_in::BuyExactSolIn::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::BuyExactSolIn(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [16, 4, 71, 28, 204, 1, 40, 27] => {
-                    claim_token_incentives::ClaimTokenIncentives::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::ClaimTokenIncentives(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [249, 69, 164, 218, 150, 103, 84, 138] => {
-                    close_user_volume_accumulator::CloseUserVolumeAccumulator::decode(data).map(
-                        |decoded| carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::CloseUserVolumeAccumulator(decoded),
-                            accounts: instruction.accounts.clone(),
-                        },
-                    )
-                }
-                [20, 22, 86, 123, 198, 28, 219, 132] => {
-                    collect_creator_fee::CollectCreatorFee::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::CollectCreatorFee(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [228, 69, 165, 46, 81, 203, 154, 29] => {
-                    cpi_event::CpiEvent::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::CpiEvent(Box::new(decoded)),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [24, 30, 200, 40, 5, 28, 7, 119] => create::Create::decode(data).map(
-                    |decoded| carbon_core::instruction::DecodedInstruction {
-                        program_id: instruction.program_id,
-                        data: PumpfunInstruction::Create(decoded),
-                        accounts: instruction.accounts.clone(),
-                    },
-                ),
-                [214, 144, 76, 236, 95, 139, 49, 180] => {
-                    create_v2::CreateV2::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::CreateV2(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [234, 102, 194, 203, 150, 72, 62, 229] => {
-                    extend_account::ExtendAccount::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::ExtendAccount(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [94, 6, 202, 115, 255, 96, 232, 183] => {
-                    init_user_volume_accumulator::InitUserVolumeAccumulator::decode(data).map(
-                        |decoded| carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::InitUserVolumeAccumulator(decoded),
-                            accounts: instruction.accounts.clone(),
-                        },
-                    )
-                }
-                [175, 175, 109, 31, 13, 152, 155, 237] => {
-                    initialize::Initialize::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::Initialize(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [155, 234, 231, 146, 236, 158, 162, 30] => {
-                    migrate::Migrate::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::Migrate(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [51, 230, 133, 164, 1, 127, 131, 173] => sell::Sell::decode(data).map(
-                    |decoded| carbon_core::instruction::DecodedInstruction {
-                        program_id: instruction.program_id,
-                        data: PumpfunInstruction::Sell(decoded),
-                        accounts: instruction.accounts.clone(),
-                    },
-                ),
-                [254, 148, 255, 112, 207, 142, 170, 165] => {
-                    set_creator::SetCreator::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::SetCreator(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [61, 169, 188, 191, 153, 149, 42, 97] => {
-                    set_mayhem_virtual_params::SetMayhemVirtualParams::decode(data).map(
-                        |decoded| carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::SetMayhemVirtualParams(decoded),
-                            accounts: instruction.accounts.clone(),
-                        },
-                    )
-                }
-                [138, 96, 174, 217, 48, 85, 197, 246] => {
-                    set_metaplex_creator::SetMetaplexCreator::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::SetMetaplexCreator(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [27, 234, 178, 52, 147, 2, 187, 141] => {
-                    set_params::SetParams::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::SetParams(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [111, 172, 162, 232, 114, 89, 213, 142] => {
-                    set_reserved_fee_recipients::SetReservedFeeRecipients::decode(data).map(
-                        |decoded| carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::SetReservedFeeRecipients(decoded),
-                            accounts: instruction.accounts.clone(),
-                        },
-                    )
-                }
-                [86, 31, 192, 87, 163, 87, 79, 238] => {
-                    sync_user_volume_accumulator::SyncUserVolumeAccumulator::decode(data).map(
-                        |decoded| carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::SyncUserVolumeAccumulator(decoded),
-                            accounts: instruction.accounts.clone(),
-                        },
-                    )
-                }
-                [28, 255, 230, 240, 172, 107, 203, 171] => {
-                    toggle_create_v2::ToggleCreateV2::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::ToggleCreateV2(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [1, 9, 111, 208, 100, 31, 255, 163] => {
-                    toggle_mayhem_mode::ToggleMayhemMode::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::ToggleMayhemMode(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                [227, 181, 74, 196, 208, 21, 97, 213] => {
-                    update_global_authority::UpdateGlobalAuthority::decode(data).map(|decoded| {
-                        carbon_core::instruction::DecodedInstruction {
-                            program_id: instruction.program_id,
-                            data: PumpfunInstruction::UpdateGlobalAuthority(decoded),
-                            accounts: instruction.accounts.clone(),
-                        }
-                    })
-                }
-                _ => None,
-            };
+            #[cfg(not(feature = "minimal-events"))]
+            [8, 217, 96, 231, 144, 104, 192, 5] => {
+                let data = AdminSetIdlAuthority::decode(data)?;
+                let accounts = <AdminSetIdlAuthority as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::AdminSetIdlAuthority {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [209, 11, 115, 87, 213, 23, 124, 204] => {
+                let data = AdminUpdateTokenIncentives::decode(data)?;
+                let accounts = <AdminUpdateTokenIncentives as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::AdminUpdateTokenIncentives {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [102, 6, 61, 18, 1, 218, 235, 234] => {
+                let data = Buy::decode(data)?;
+                let accounts = <Buy as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::Buy {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [194, 171, 28, 70, 104, 77, 91, 47] => {
+                let data = BuyExactQuoteInV2::decode(data)?;
+                let accounts = <BuyExactQuoteInV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::BuyExactQuoteInV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [56, 252, 116, 8, 158, 223, 205, 95] => {
+                let data = BuyExactSolIn::decode(data)?;
+                let accounts = <BuyExactSolIn as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::BuyExactSolIn {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [184, 23, 238, 97, 103, 197, 211, 61] => {
+                let data = BuyV2::decode(data)?;
+                let accounts = <BuyV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::BuyV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [37, 58, 35, 126, 190, 53, 228, 197] => {
+                let data = ClaimCashback::decode(data)?;
+                let accounts = <ClaimCashback as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ClaimCashback {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [122, 243, 204, 65, 94, 116, 29, 55] => {
+                let data = ClaimCashbackV2::decode(data)?;
+                let accounts = <ClaimCashbackV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ClaimCashbackV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [16, 4, 71, 28, 204, 1, 40, 27] => {
+                let data = ClaimTokenIncentives::decode(data)?;
+                let accounts = <ClaimTokenIncentives as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ClaimTokenIncentives {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [249, 69, 164, 218, 150, 103, 84, 138] => {
+                let data = CloseUserVolumeAccumulator::decode(data)?;
+                let accounts = <CloseUserVolumeAccumulator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::CloseUserVolumeAccumulator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [20, 22, 86, 123, 198, 28, 219, 132] => {
+                let data = CollectCreatorFee::decode(data)?;
+                let accounts = <CollectCreatorFee as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::CollectCreatorFee {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [228, 69, 165, 46, 81, 203, 154, 29] => {
+                let data = CpiEvent::decode(data)?;
+                let accounts = <CpiEvent as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::CpiEvent {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [24, 30, 200, 40, 5, 28, 7, 119] => {
+                let data = Create::decode(data)?;
+                let accounts = <Create as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::Create {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [214, 144, 76, 236, 95, 139, 49, 180] => {
+                let data = CreateV2::decode(data)?;
+                let accounts = <CreateV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::CreateV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [165, 114, 103, 0, 121, 206, 247, 81] => {
+                let data = DistributeCreatorFees::decode(data)?;
+                let accounts = <DistributeCreatorFees as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::DistributeCreatorFees {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [234, 102, 194, 203, 150, 72, 62, 229] => {
+                let data = ExtendAccount::decode(data)?;
+                let accounts = <ExtendAccount as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ExtendAccount {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [117, 225, 127, 202, 134, 95, 68, 35] => {
+                let data = GetMinimumDistributableFee::decode(data)?;
+                let accounts = <GetMinimumDistributableFee as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::GetMinimumDistributableFee {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [94, 6, 202, 115, 255, 96, 232, 183] => {
+                let data = InitUserVolumeAccumulator::decode(data)?;
+                let accounts = <InitUserVolumeAccumulator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::InitUserVolumeAccumulator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [175, 175, 109, 31, 13, 152, 155, 237] => {
+                let data = Initialize::decode(data)?;
+                let accounts = <Initialize as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::Initialize {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [155, 234, 231, 146, 236, 158, 162, 30] => {
+                let data = Migrate::decode(data)?;
+                let accounts = <Migrate as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::Migrate {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [87, 124, 52, 191, 52, 38, 214, 232] => {
+                let data = MigrateBondingCurveCreator::decode(data)?;
+                let accounts = <MigrateBondingCurveCreator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::MigrateBondingCurveCreator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [187, 203, 18, 31, 206, 237, 254, 41] => {
+                let data = MigrateV2::decode(data)?;
+                let accounts = <MigrateV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::MigrateV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [177, 65, 223, 38, 88, 209, 158, 155] => {
+                let data = RemoveQuoteMint::decode(data)?;
+                let accounts = <RemoveQuoteMint as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::RemoveQuoteMint {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [51, 230, 133, 164, 1, 127, 131, 173] => {
+                let data = Sell::decode(data)?;
+                let accounts = <Sell as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::Sell {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            [93, 246, 130, 60, 231, 233, 64, 178] => {
+                let data = SellV2::decode(data)?;
+                let accounts = <SellV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SellV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [254, 148, 255, 112, 207, 142, 170, 165] => {
+                let data = SetCreator::decode(data)?;
+                let accounts = <SetCreator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SetCreator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [61, 169, 188, 191, 153, 149, 42, 97] => {
+                let data = SetMayhemVirtualParams::decode(data)?;
+                let accounts = <SetMayhemVirtualParams as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SetMayhemVirtualParams {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [138, 96, 174, 217, 48, 85, 197, 246] => {
+                let data = SetMetaplexCreator::decode(data)?;
+                let accounts = <SetMetaplexCreator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SetMetaplexCreator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [27, 234, 178, 52, 147, 2, 187, 141] => {
+                let data = SetParams::decode(data)?;
+                let accounts = <SetParams as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SetParams {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [111, 172, 162, 232, 114, 89, 213, 142] => {
+                let data = SetReservedFeeRecipients::decode(data)?;
+                let accounts = <SetReservedFeeRecipients as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SetReservedFeeRecipients {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [101, 135, 191, 104, 9, 88, 20, 96] => {
+                let data = SetVirtualQuoteReserves::decode(data)?;
+                let accounts = <SetVirtualQuoteReserves as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SetVirtualQuoteReserves {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [86, 31, 192, 87, 163, 87, 79, 238] => {
+                let data = SyncUserVolumeAccumulator::decode(data)?;
+                let accounts = <SyncUserVolumeAccumulator as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::SyncUserVolumeAccumulator {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [115, 103, 224, 255, 189, 89, 86, 195] => {
+                let data = ToggleCashbackEnabled::decode(data)?;
+                let accounts = <ToggleCashbackEnabled as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ToggleCashbackEnabled {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [28, 255, 230, 240, 172, 107, 203, 171] => {
+                let data = ToggleCreateV2::decode(data)?;
+                let accounts = <ToggleCreateV2 as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ToggleCreateV2 {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [1, 9, 111, 208, 100, 31, 255, 163] => {
+                let data = ToggleMayhemMode::decode(data)?;
+                let accounts = <ToggleMayhemMode as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::ToggleMayhemMode {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [251, 224, 171, 146, 160, 26, 113, 233] => {
+                let data = UpdateBuybackConfig::decode(data)?;
+                let accounts = <UpdateBuybackConfig as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::UpdateBuybackConfig {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            #[cfg(not(feature = "minimal-events"))]
+            [227, 181, 74, 196, 208, 21, 97, 213] => {
+                let data = UpdateGlobalAuthority::decode(data)?;
+                let accounts = <UpdateGlobalAuthority as carbon_core::deserialize::ArrangeAccounts>::arrange_accounts(&instruction.accounts)?;
+                Some(PumpfunInstruction::UpdateGlobalAuthority {
+                    program_id: instruction.program_id,
+                    data,
+                    accounts,
+                })
+            }
+            _ => None,
         }
     }
 }

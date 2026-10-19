@@ -2,7 +2,8 @@
 name = "carbon-stream-message-datasource"
 description = "Stream Message Datasource"
 license = { workspace = true }
-version = "0.12.0"
+version = "2.0.0"
+rust-version = { workspace = true }
 edition = { workspace = true }
 readme = "README.md"
 repository = { workspace = true }
@@ -13,9 +14,6 @@ categories = ["encoding"]
 crate-type = ["rlib"]
 
 [dependencies]
-solana-pubkey = { workspace = true }
-solana-system-interface = { workspace = true }
-
 carbon-core = { workspace = true }
 
 async-trait = { workspace = true }
